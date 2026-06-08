@@ -7,8 +7,12 @@ import io.nightbeam.donutauction.model.AuctionPage;
 import io.nightbeam.donutauction.model.PlayerAuctionSession;
 import io.nightbeam.donutauction.service.ActionResult;
 import io.nightbeam.donutauction.service.AuctionService;
+import io.nightbeam.donutauction.service.PlayerPreferenceManager;
 import io.nightbeam.donutauction.util.ItemBuilder;
+import io.nightbeam.donutauction.util.ItemLoreApplier;
+import io.nightbeam.donutauction.util.ShulkerBoxSupport;
 import io.nightbeam.donutauction.util.TimeUtil;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,13 +34,16 @@ public final class AuctionGui extends BaseGui {
 
     private final GuiManager guiManager;
     private final AuctionService auctionService;
+    private final PlayerPreferenceManager preferenceManager;
     private final DonutCoreHook donutCoreHook;
     private final PlayerAuctionSession session;
     private final Map<Integer, UUID> slotMappings = new HashMap<>();
 
-    public AuctionGui(GuiManager guiManager, AuctionService auctionService, DonutCoreHook donutCoreHook, PlayerAuctionSession session) {
+    public AuctionGui(GuiManager guiManager, AuctionService auctionService, PlayerPreferenceManager preferenceManager,
+                      DonutCoreHook donutCoreHook, PlayerAuctionSession session) {
         this.guiManager = guiManager;
         this.auctionService = auctionService;
+        this.preferenceManager = preferenceManager;
         this.donutCoreHook = donutCoreHook;
         this.session = session;
     }
@@ -57,7 +64,6 @@ public final class AuctionGui extends BaseGui {
             slotMappings.put(slot, listing.auctionId());
         }
 
-        // bottom row controls repositioned per user request
         inventory.setItem(47, ItemBuilder.of(Material.CAULDRON)
                 .name(Component.text("Price Sort", NamedTextColor.WHITE))
                 .lore(
@@ -92,7 +98,6 @@ public final class AuctionGui extends BaseGui {
                 .lore(Component.text("View active, sold, and expired listings", NamedTextColor.GRAY))
                 .build());
 
-        // slot 53 is still next page arrow
         inventory.setItem(53, ItemBuilder.of(Material.ARROW)
                 .name(Component.text("Next Page", NamedTextColor.WHITE))
                 .lore(Component.text(page.hasNextPage() ? "Open the next page" : "No more listings", NamedTextColor.GRAY))
@@ -110,13 +115,32 @@ public final class AuctionGui extends BaseGui {
         int slot = event.getSlot();
         if (slotMappings.containsKey(slot)) {
             UUID auctionId = slotMappings.get(slot);
-            auctionService.purchaseAuction(player, auctionId).thenAccept(result -> sendAndRefresh(player, result));
+            AuctionListing listing = auctionService.findListing(auctionId).orElse(null);
+            if (listing == null) {
+                return;
+            }
+
+            if (event.isRightClick() && ShulkerBoxSupport.isShulkerBox(listing.item())) {
+                guiManager.openShulkerPreview(player, listing.item());
+                return;
+            }
+
+            boolean fastBuyEnabled = false;
+            var pref = preferenceManager.getCached(player.getUniqueId());
+            if (pref != null && pref.fastBuyEnabled() && player.hasPermission("donutauction.fastbuy")) {
+                fastBuyEnabled = true;
+            }
+
+            if (fastBuyEnabled) {
+                auctionService.purchaseAuction(player, auctionId).thenAccept(result -> sendAndRefresh(player, result));
+            } else {
+                guiManager.openConfirmPurchase(player, listing);
+            }
             return;
         }
 
         AuctionBrowseRequest request = session.request();
         if (slot == 47) {
-            // price sort action (no previous page arrow anymore)
             session.request(request.withSortMode(request.sortMode().next()));
             guiManager.refreshAuctionHouse(player);
             return;
@@ -157,15 +181,25 @@ public final class AuctionGui extends BaseGui {
         } else {
             sellerName = seller.getName() == null ? "Unknown" : seller.getName();
         }
-        display.editMeta(meta -> {
-            meta.lore(List.of(
-                    Component.text("Price: " + auctionService.formatPrice(listing.price()), NamedTextColor.GRAY),
-                    Component.text("Seller: " + sellerName, NamedTextColor.GRAY),
-                    Component.text("Expires in: " + TimeUtil.formatDuration(listing.expirationTime() - now), NamedTextColor.GRAY),
-                    Component.text("Click to purchase.", NamedTextColor.GREEN)
-            ));
-            meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
-        });
+
+        ItemLoreApplier.LoreMode loreMode = auctionService.getLoreMode();
+        boolean showSeparator = auctionService.getLoreSeparator();
+
+        List<Component> auctionLore = new ArrayList<>();
+        auctionLore.add(Component.text("Price: " + auctionService.formatPrice(listing.price()), NamedTextColor.GRAY));
+        auctionLore.add(Component.text("Seller: " + sellerName, NamedTextColor.GRAY));
+        auctionLore.add(Component.text("Expires in: " + TimeUtil.formatDuration(listing.expirationTime() - now), NamedTextColor.GRAY));
+
+        if (ShulkerBoxSupport.isShulkerBox(display)) {
+            int itemCount = ShulkerBoxSupport.getItemCount(display);
+            auctionLore.add(Component.text("Contents: " + itemCount + " items", NamedTextColor.AQUA));
+            auctionLore.add(Component.text("Right-click to preview", NamedTextColor.DARK_GRAY));
+        }
+
+        auctionLore.add(Component.text("Click to purchase.", NamedTextColor.GREEN));
+
+        ItemLoreApplier.applyLore(display, loreMode, showSeparator, auctionLore);
+        display.editMeta(meta -> meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES));
         return display;
     }
 

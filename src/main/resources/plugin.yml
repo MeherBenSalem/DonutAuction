@@ -13,7 +13,7 @@ softdepend:
 commands:
   ah:
     description: Opens the auction house.
-    usage: /ah [sell <price>|cancel|reload]
+    usage: /ah [sell <price>|cancel|reload|limit|fastbuy|fastsell]
     aliases: [auctionhouse]
     permission: donutcore.auction.use
   auction:
@@ -30,3 +30,51 @@ permissions:
   donutcore.auction.admin:
     description: Administrative auction controls.
     default: op
+  donutauction.use:
+    description: Access to the auction house.
+    default: true
+  donutauction.sell:
+    description: Allows selling items through the auction house.
+    default: true
+  donutauction.admin:
+    description: Administrative auction controls.
+    default: op
+  donutauction.fastbuy:
+    description: Allows toggling fast buy mode.
+    default: true
+  donutauction.fastsell:
+    description: Allows toggling fast sell mode.
+    default: true
+  donutauction.update.notify:
+    description: Notifies the player about available updates.
+    default: op
+  donutauction.limit.5:
+    description: Auction limit of 5 listings.
+    default: true
+  donutauction.limit.10:
+    description: Auction limit of 10 listings.
+    default: false
+  donutauction.limit.25:
+    description: Auction limit of 25 listings.
+    default: false
+  donutauction.limit.50:
+    description: Auction limit of 50 listings.
+    default: false
+  donutauction.limit.100:
+    description: Auction limit of 100 listings.
+    default: false
+  donutauction.limit.unlimited:
+    description: Unlimited auction listings.
+    default: false
+  donutauction.slots.10:
+    description: Auction slot expansion to 10.
+    default: false
+  donutauction.slots.25:
+    description: Auction slot expansion to 25.
+    default: false
+  donutauction.slots.50:
+    description: Auction slot expansion to 50.
+    default: false
+  donutauction.slots.100:
+    description: Auction slot expansion to 100.
+    default: false

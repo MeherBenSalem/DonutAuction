@@ -21,6 +21,7 @@ public final class AuctionManager {
     private static final PlainTextComponentSerializer PLAIN_TEXT = PlainTextComponentSerializer.plainText();
 
     private final Map<UUID, AuctionListing> listingCache = new ConcurrentHashMap<>();
+    private final Map<UUID, String> plainNameCache = new ConcurrentHashMap<>();
     private final Map<String, AuctionPage> pageCache = new ConcurrentHashMap<>();
     private final int pageSize;
 
@@ -30,17 +31,23 @@ public final class AuctionManager {
 
     public void replaceAll(Collection<AuctionListing> listings) {
         listingCache.clear();
-        listings.forEach(listing -> listingCache.put(listing.auctionId(), listing));
+        plainNameCache.clear();
+        listings.forEach(listing -> {
+            listingCache.put(listing.auctionId(), listing);
+            plainNameCache.put(listing.auctionId(), computePlainName(listing));
+        });
         invalidatePages();
     }
 
     public void upsert(AuctionListing listing) {
         listingCache.put(listing.auctionId(), listing);
+        plainNameCache.put(listing.auctionId(), computePlainName(listing));
         invalidatePages();
     }
 
     public void remove(UUID auctionId) {
         listingCache.remove(auctionId);
+        plainNameCache.remove(auctionId);
         invalidatePages();
     }
 
@@ -94,10 +101,15 @@ public final class AuctionManager {
         if (searchTerm == null || searchTerm.isBlank()) {
             return true;
         }
-        String itemName = listing.item().hasItemMeta() && listing.item().getItemMeta().hasDisplayName()
-                ? PLAIN_TEXT.serialize(listing.item().getItemMeta().displayName())
-                : listing.item().getType().name().replace('_', ' ');
+        String itemName = plainNameCache.getOrDefault(listing.auctionId(), computePlainName(listing));
         return itemName.toLowerCase(Locale.ENGLISH).contains(searchTerm.toLowerCase(Locale.ENGLISH));
+    }
+
+    private String computePlainName(AuctionListing listing) {
+        if (listing.item().hasItemMeta() && listing.item().getItemMeta().hasDisplayName()) {
+            return PLAIN_TEXT.serialize(listing.item().getItemMeta().displayName());
+        }
+        return listing.item().getType().name().replace('_', ' ');
     }
 
     private String cacheKey(AuctionBrowseRequest request, long bucket) {

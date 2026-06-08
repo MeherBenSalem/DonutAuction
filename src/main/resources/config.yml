@@ -17,6 +17,48 @@ auction:
   min-price: 10
   max-price: 1.0E9
 
+auction-lore:
+  mode: APPEND
+  separator: true
+
+auction-limits:
+  enabled: true
+  default-limit: 5
+  permissions:
+    donutauction.limit.10: 10
+    donutauction.limit.25: 25
+    donutauction.limit.50: 50
+    donutauction.limit.100: 100
+    donutauction.limit.unlimited: -1
+
+auction-slots:
+  enabled: true
+  permissions:
+    donutauction.slots.10: 10
+    donutauction.slots.25: 25
+    donutauction.slots.50: 50
+    donutauction.slots.100: 100
+
+fast-buy:
+  enabled: true
+  default-state: false
+  require-permission: true
+
+fast-sell:
+  enabled: true
+  default-state: false
+  require-permission: true
+
+shulker-support:
+  enabled: true
+  preview-contents: true
+
+update-checker:
+  enabled: true
+  notify-console: true
+  notify-admins: true
+  check-interval-hours: 12
+
 messages:
   prefix: '&6&lAuctionHouse &8» '
   price-below-min: '&cMinimum auction price is &6%min_price%&c.'

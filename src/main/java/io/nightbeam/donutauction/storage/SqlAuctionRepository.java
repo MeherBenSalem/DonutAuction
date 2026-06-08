@@ -13,13 +13,16 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
 
 public final class SqlAuctionRepository implements AuctionRepository {
 
     private final DatabaseManager databaseManager;
+    private final Executor asyncExecutor;
 
-    public SqlAuctionRepository(DatabaseManager databaseManager) {
+    public SqlAuctionRepository(DatabaseManager databaseManager, Executor asyncExecutor) {
         this.databaseManager = databaseManager;
+        this.asyncExecutor = asyncExecutor;
     }
 
     @Override
@@ -46,7 +49,7 @@ public final class SqlAuctionRepository implements AuctionRepository {
             } catch (SQLException exception) {
                 throw new CompletionException(exception);
             }
-        });
+        }, asyncExecutor);
     }
 
     @Override
@@ -63,7 +66,7 @@ public final class SqlAuctionRepository implements AuctionRepository {
             } catch (SQLException exception) {
                 throw new CompletionException(exception);
             }
-        });
+        }, asyncExecutor);
     }
 
     @Override
@@ -79,7 +82,7 @@ public final class SqlAuctionRepository implements AuctionRepository {
             } catch (SQLException exception) {
                 throw new CompletionException(exception);
             }
-        });
+        }, asyncExecutor);
     }
 
     @Override
@@ -104,7 +107,7 @@ public final class SqlAuctionRepository implements AuctionRepository {
             } catch (SQLException exception) {
                 throw new CompletionException(exception);
             }
-        });
+        }, asyncExecutor);
     }
 
     @Override
@@ -122,7 +125,7 @@ public final class SqlAuctionRepository implements AuctionRepository {
             } catch (SQLException exception) {
                 throw new CompletionException(exception);
             }
-        });
+        }, asyncExecutor);
     }
 
     @Override
@@ -141,7 +144,7 @@ public final class SqlAuctionRepository implements AuctionRepository {
             } catch (SQLException exception) {
                 throw new CompletionException(exception);
             }
-        });
+        }, asyncExecutor);
     }
 
     @Override
@@ -161,7 +164,7 @@ public final class SqlAuctionRepository implements AuctionRepository {
             } catch (SQLException exception) {
                 throw new CompletionException(exception);
             }
-        });
+        }, asyncExecutor);
     }
 
     private void bindListing(PreparedStatement statement, AuctionListing listing) throws SQLException {

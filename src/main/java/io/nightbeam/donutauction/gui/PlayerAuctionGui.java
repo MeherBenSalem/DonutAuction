@@ -5,7 +5,9 @@ import io.nightbeam.donutauction.model.AuctionStatus;
 import io.nightbeam.donutauction.service.ActionResult;
 import io.nightbeam.donutauction.service.AuctionService;
 import io.nightbeam.donutauction.util.ItemBuilder;
+import io.nightbeam.donutauction.util.ItemLoreApplier;
 import io.nightbeam.donutauction.util.TimeUtil;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -106,12 +108,17 @@ public final class PlayerAuctionGui extends BaseGui {
 
     private ItemStack buildItem(AuctionListing listing, long now) {
         ItemStack display = listing.item().clone();
-        display.editMeta(meta -> meta.lore(List.of(
-            Component.text("Price: " + auctionService.formatPrice(listing.price()), NamedTextColor.GRAY),
-                Component.text("Time remaining: " + TimeUtil.formatDuration(listing.expirationTime() - now), NamedTextColor.GRAY),
-                Component.text("Status: " + humanStatus(listing.status()), colorForStatus(listing.status())),
-                Component.text(actionLine(listing), NamedTextColor.GREEN)
-        )));
+
+        ItemLoreApplier.LoreMode loreMode = auctionService.getLoreMode();
+        boolean showSeparator = auctionService.getLoreSeparator();
+
+        List<Component> auctionLore = new ArrayList<>();
+        auctionLore.add(Component.text("Price: " + auctionService.formatPrice(listing.price()), NamedTextColor.GRAY));
+        auctionLore.add(Component.text("Time remaining: " + TimeUtil.formatDuration(listing.expirationTime() - now), NamedTextColor.GRAY));
+        auctionLore.add(Component.text("Status: " + humanStatus(listing.status()), colorForStatus(listing.status())));
+        auctionLore.add(Component.text(actionLine(listing), NamedTextColor.GREEN));
+
+        ItemLoreApplier.applyLore(display, loreMode, showSeparator, auctionLore);
         return display;
     }
 

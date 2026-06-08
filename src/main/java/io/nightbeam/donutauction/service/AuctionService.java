@@ -4,11 +4,13 @@ import io.nightbeam.donutauction.AuctionHousePlugin;
 import io.nightbeam.donutauction.economy.VaultEconomyProvider;
 import io.nightbeam.donutauction.hook.DonutCoreHook;
 import io.nightbeam.donutauction.model.AuctionBrowseRequest;
+import io.nightbeam.donutauction.model.AuctionFilterCategory;
 import io.nightbeam.donutauction.model.AuctionListing;
 import io.nightbeam.donutauction.model.AuctionPage;
 import io.nightbeam.donutauction.model.AuctionStatus;
 import io.nightbeam.donutauction.model.ListingPriceValidationResult;
 import io.nightbeam.donutauction.storage.AuctionRepository;
+import io.nightbeam.donutauction.util.ItemLoreApplier;
 import io.nightbeam.donutauction.util.SchedulerAdapter;
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import java.util.List;
@@ -18,6 +20,8 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import net.milkbowl.vault.economy.EconomyResponse;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -84,9 +88,28 @@ public final class AuctionService {
         return auctionManager.sellerListings(playerId);
     }
 
+    public int getPlayerActiveAuctionCount(UUID playerId) {
+        return (int) auctionManager.sellerListings(playerId).stream()
+                .filter(listing -> listing.status() == AuctionStatus.ACTIVE)
+                .count();
+    }
+
     public CompletableFuture<ActionResult> createAuction(Player player, ItemStack itemInHand, double price) {
+        long durationHours = plugin.getConfig().getLong("auction.listing-duration-hours", 48L);
+        return createAuction(player, itemInHand, price, (int) durationHours, AuctionFilterCategory.ALL);
+    }
+
+    public CompletableFuture<ActionResult> createAuction(Player player, ItemStack itemInHand, double price, int durationHours, AuctionFilterCategory category) {
         if (itemInHand == null || itemInHand.getType() == Material.AIR) {
             return CompletableFuture.completedFuture(ActionResult.failure("&cHold the item you want to list."));
+        }
+        removeHeldItem(player);
+        return createAuctionFromItem(player, itemInHand, price, durationHours, category);
+    }
+
+    public CompletableFuture<ActionResult> createAuctionFromItem(Player player, ItemStack item, double price, int durationHours, AuctionFilterCategory category) {
+        if (item == null || item.getType() == Material.AIR) {
+            return CompletableFuture.completedFuture(ActionResult.failure("&cThe item is invalid."));
         }
 
         double minPrice = plugin.getConfig().getDouble("auction.min-price", 10.0D);
@@ -102,23 +125,26 @@ public final class AuctionService {
         }
 
         long now = System.currentTimeMillis();
-        long duration = plugin.getConfig().getLong("auction.listing-duration-hours", 48L) * 3_600_000L;
-        AuctionListing listing = new AuctionListing(UUID.randomUUID(), itemInHand.clone(), player.getUniqueId(), price, now, now + duration, AuctionStatus.ACTIVE, null, 0L, false);
+        long durationMillis = Math.max(1L, durationHours) * 3_600_000L;
+        AuctionListing listing = new AuctionListing(UUID.randomUUID(), item.clone(), player.getUniqueId(), price, now, now + durationMillis, AuctionStatus.ACTIVE, null, 0L, false);
 
-        removeHeldItem(player);
         return repository.save(listing)
                 .thenApply(ignored -> {
                     auctionManager.upsert(listing);
-                    return ActionResult.success("&aListed " + itemName(itemInHand) + " for &6" + economyProvider.format(price) + "&a.");
+                    return ActionResult.success("&aListed " + itemName(item) + " for &6" + economyProvider.format(price) + "&a.");
                 })
                 .exceptionally(throwable -> {
-                    schedulerAdapter.runEntity(player, () -> restoreItem(player, itemInHand));
+                    schedulerAdapter.runEntity(player, () -> restoreItem(player, item));
                     plugin.getLogger().severe("Failed to save auction listing: " + throwable.getMessage());
                     return ActionResult.failure("&cFailed to create the auction. Your item was returned.");
                 });
     }
 
     public CompletableFuture<ActionResult> purchaseAuction(Player buyer, UUID auctionId) {
+        return purchaseAuction(buyer, auctionId, false);
+    }
+
+    public CompletableFuture<ActionResult> purchaseAuction(Player buyer, UUID auctionId, boolean fastBuy) {
         AuctionListing listing = auctionManager.findCached(auctionId);
         if (listing == null) {
             return CompletableFuture.completedFuture(ActionResult.failure("&cThat auction is no longer available."));
@@ -160,15 +186,23 @@ public final class AuctionService {
 
         AuctionListing soldListing = listing.asSold(buyer.getUniqueId(), now);
         auctionManager.upsert(soldListing);
-        deliverItem(buyer, soldListing.item());
 
         return repository.update(soldListing)
-                .thenApply(ignored -> ActionResult.success("&aPurchased " + itemName(soldListing.item()) + " for &6" + economyProvider.format(soldListing.price()) + "&a."))
+                .thenApply(ignored -> {
+                    deliverItem(buyer, soldListing.item());
+                    return ActionResult.success("&aPurchased " + itemName(soldListing.item()) + " for &6" + economyProvider.format(soldListing.price()) + "&a.");
+                })
                 .exceptionally(throwable -> {
                     plugin.getLogger().severe("Failed to persist auction purchase: " + throwable.getMessage());
-                    return ActionResult.success("&ePurchase completed, but persistence reported an error. Check console.");
+                    economyProvider.deposit(offlineBuyer, listing.price());
+                    economyProvider.withdraw(seller, listing.price());
+                    auctionManager.upsert(listing);
+                    return ActionResult.failure("&cPurchase failed. Your money has been refunded.");
                 })
-                .whenComplete((result, throwable) -> operationLock.set(false));
+                .whenComplete((result, throwable) -> {
+                    operationLock.set(false);
+                    operationLocks.remove(auctionId);
+                });
     }
 
     public CompletableFuture<ActionResult> cancelAuction(Player seller, UUID auctionId) {
@@ -182,12 +216,16 @@ public final class AuctionService {
 
         AuctionListing cancelled = listing.withStatus(AuctionStatus.CANCELLED).markSellerClaimed();
         auctionManager.upsert(cancelled);
-        restoreItem(seller, cancelled.item());
+
         return repository.update(cancelled)
-                .thenApply(ignored -> ActionResult.success("&aAuction cancelled and item returned."))
+                .thenApply(ignored -> {
+                    restoreItem(seller, cancelled.item());
+                    return ActionResult.success("&aAuction cancelled and item returned.");
+                })
                 .exceptionally(throwable -> {
                     plugin.getLogger().severe("Failed to persist cancellation: " + throwable.getMessage());
-                    return ActionResult.success("&eAuction cancelled in memory, but persistence reported an error. Check console.");
+                    auctionManager.upsert(listing);
+                    return ActionResult.failure("&cFailed to cancel auction. Please try again.");
                 });
     }
 
@@ -205,16 +243,24 @@ public final class AuctionService {
             auctionManager.upsert(claimed);
             return repository.update(claimed)
                     .thenApply(ignored -> ActionResult.success("&aSale marked as collected. Payment was delivered through Vault at purchase time."))
-                    .exceptionally(throwable -> ActionResult.failure("&cUnable to update the collection state."));
+                    .exceptionally(throwable -> {
+                        auctionManager.upsert(listing);
+                        return ActionResult.failure("&cUnable to update the collection state.");
+                    });
         }
 
         if (listing.status() == AuctionStatus.EXPIRED || listing.status() == AuctionStatus.CANCELLED) {
-            restoreItem(seller, listing.item());
             AuctionListing collected = listing.markSellerClaimed();
             auctionManager.upsert(collected);
             return repository.update(collected)
-                    .thenApply(ignored -> ActionResult.success("&aReturned your unsold item."))
-                    .exceptionally(throwable -> ActionResult.failure("&cUnable to update the collection state."));
+                    .thenApply(ignored -> {
+                        restoreItem(seller, listing.item());
+                        return ActionResult.success("&aReturned your unsold item.");
+                    })
+                    .exceptionally(throwable -> {
+                        auctionManager.upsert(listing);
+                        return ActionResult.failure("&cUnable to update the collection state. Please try again.");
+                    });
         }
 
         return CompletableFuture.completedFuture(ActionResult.failure("&cNothing to collect for that auction."));
@@ -232,13 +278,25 @@ public final class AuctionService {
         return economyProvider.format(price);
     }
 
+    public ItemLoreApplier.LoreMode getLoreMode() {
+        String mode = plugin.getConfig().getString("auction-lore.mode", "APPEND");
+        return ItemLoreApplier.parseMode(mode);
+    }
+
+    public boolean getLoreSeparator() {
+        return plugin.getConfig().getBoolean("auction-lore.separator", true);
+    }
+
     private void scanAndExpireAuctions() {
         long now = System.currentTimeMillis();
         repository.findExpiredActive(now).thenAccept(listings -> {
             for (AuctionListing listing : listings) {
                 AuctionListing expired = listing.asExpired();
                 auctionManager.upsert(expired);
-                repository.update(expired);
+                repository.update(expired).exceptionally(throwable -> {
+                    plugin.getLogger().warning("Failed to persist expired auction " + listing.auctionId() + ": " + throwable.getMessage());
+                    return null;
+                });
             }
         }).exceptionally(throwable -> {
             plugin.getLogger().warning("Failed to scan expired auctions: " + throwable.getMessage());
@@ -252,7 +310,10 @@ public final class AuctionService {
         }
         AuctionListing expired = listing.asExpired();
         auctionManager.upsert(expired);
-        repository.update(expired);
+        repository.update(expired).exceptionally(throwable -> {
+            plugin.getLogger().warning("Failed to persist expired auction " + listing.auctionId() + ": " + throwable.getMessage());
+            return null;
+        });
     }
 
     private void removeHeldItem(Player player) {
