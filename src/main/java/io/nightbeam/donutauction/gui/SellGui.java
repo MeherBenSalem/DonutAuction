@@ -1,13 +1,13 @@
 package io.nightbeam.donutauction.gui;
 
 import io.nightbeam.donutauction.model.AuctionFilterCategory;
-import io.nightbeam.donutauction.model.AuctionListing;
+import io.nightbeam.donutauction.model.PendingSaleTransaction;
 import io.nightbeam.donutauction.model.PlayerPreference;
-import io.nightbeam.donutauction.service.ActionResult;
 import io.nightbeam.donutauction.service.AuctionService;
 import io.nightbeam.donutauction.service.PlayerPreferenceManager;
 import io.nightbeam.donutauction.util.ItemBuilder;
-import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
@@ -27,19 +27,22 @@ public final class SellGui extends BaseGui {
     private final GuiManager guiManager;
     private final AuctionService auctionService;
     private final PlayerPreferenceManager preferenceManager;
-    private final ItemStack itemToSell;
+    private final UUID transactionId;
+    private final ItemStack displayItem;
     private final double price;
     private int selectedDurationIndex = 3;
     private AuctionFilterCategory selectedCategory = AuctionFilterCategory.ALL;
-    private volatile boolean confirmed = false;
+    /** Prevents concurrent click handlers from racing before the atomic claim completes. */
+    private final AtomicBoolean settlementStarted = new AtomicBoolean(false);
 
     public SellGui(GuiManager guiManager, AuctionService auctionService, PlayerPreferenceManager preferenceManager,
-                   ItemStack itemToSell, double price, PlayerPreference preference) {
+                   PendingSaleTransaction transaction, PlayerPreference preference) {
         this.guiManager = guiManager;
         this.auctionService = auctionService;
         this.preferenceManager = preferenceManager;
-        this.itemToSell = itemToSell.clone();
-        this.price = price;
+        this.transactionId = transaction.transactionId();
+        this.displayItem = transaction.item();
+        this.price = transaction.price();
 
         if (preference != null) {
             int storedDuration = preference.lastDurationHours();
@@ -61,7 +64,7 @@ public final class SellGui extends BaseGui {
     public Inventory render(Player player) {
         Inventory inventory = attach(Bukkit.createInventory(this, 36, TITLE));
 
-        inventory.setItem(4, itemToSell.clone());
+        inventory.setItem(4, displayItem.clone());
 
         for (int i = 0; i < DURATION_OPTIONS.length; i++) {
             boolean selected = i == selectedDurationIndex;
@@ -114,6 +117,10 @@ public final class SellGui extends BaseGui {
             return;
         }
 
+        if (settlementStarted.get()) {
+            return;
+        }
+
         int slot = event.getSlot();
 
         if (slot >= 18 && slot < 18 + DURATION_OPTIONS.length) {
@@ -135,7 +142,10 @@ public final class SellGui extends BaseGui {
         }
 
         if (slot == 31) {
-            confirmed = true;
+            if (!settlementStarted.compareAndSet(false, true)) {
+                return;
+            }
+
             int durationHours = DURATION_OPTIONS[selectedDurationIndex];
             AuctionFilterCategory category = selectedCategory;
 
@@ -147,7 +157,7 @@ public final class SellGui extends BaseGui {
                 preferenceManager.save(pref);
             }
 
-            auctionService.createAuctionFromItem(player, itemToSell, price, durationHours, category).thenAccept(result ->
+            auctionService.confirmPendingSale(player, transactionId, durationHours, category).thenAccept(result ->
                     guiManager.plugin().schedulerAdapter().runEntity(player, () -> {
                         guiManager.plugin().messages().send(player, result.message());
                         if (result.success()) {
@@ -161,28 +171,28 @@ public final class SellGui extends BaseGui {
         }
 
         if (slot == 35) {
-            confirmed = true;
+            if (!settlementStarted.compareAndSet(false, true)) {
+                return;
+            }
             guiManager.plugin().schedulerAdapter().runEntity(player, () -> {
-                ItemStack returnItem = itemToSell.clone();
-                player.getInventory().addItem(returnItem);
+                auctionService.cancelPendingSale(player, transactionId);
                 guiManager.openAuctionHouse(player);
             });
         }
     }
 
-    public int getSelectedDurationHours() {
-        return DURATION_OPTIONS[selectedDurationIndex];
+    public UUID getTransactionId() {
+        return transactionId;
     }
 
-    public AuctionFilterCategory getSelectedCategory() {
-        return selectedCategory;
+    /**
+     * @deprecated Use transaction claim APIs; kept for compatibility checks.
+     */
+    public boolean isSettlementStarted() {
+        return settlementStarted.get();
     }
 
-    public boolean isConfirmed() {
-        return confirmed;
-    }
-
-    public ItemStack getItemToSell() {
-        return itemToSell.clone();
+    public ItemStack getDisplayItem() {
+        return displayItem.clone();
     }
 }

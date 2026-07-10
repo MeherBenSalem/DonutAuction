@@ -4,15 +4,16 @@ import io.nightbeam.donutauction.AuctionHousePlugin;
 import io.nightbeam.donutauction.gui.GuiManager;
 import io.nightbeam.donutauction.gui.SellGui;
 import io.nightbeam.donutauction.model.AuctionFilterCategory;
+import io.nightbeam.donutauction.model.PendingSaleTransaction;
 import io.nightbeam.donutauction.model.PlayerPreference;
 import io.nightbeam.donutauction.service.AuctionLimitService;
 import io.nightbeam.donutauction.service.AuctionService;
 import io.nightbeam.donutauction.service.PlayerPreferenceManager;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import org.bukkit.Material;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -87,7 +88,7 @@ public final class AuctionCommand implements CommandExecutor, TabCompleter {
         }
 
         ItemStack itemInHand = player.getInventory().getItemInMainHand();
-        if (itemInHand.getType().name().equals("AIR")) {
+        if (itemInHand == null || itemInHand.getType() == Material.AIR) {
             plugin.messages().send(player, "&cHold the item you want to list.");
             return;
         }
@@ -98,6 +99,10 @@ public final class AuctionCommand implements CommandExecutor, TabCompleter {
             plugin.messages().send(player, "&cYou have reached your auction limit of " + limit + " listings.");
             return;
         }
+
+        // Snapshot ownership immediately: clone then clear hand so the stack cannot remain in inventory.
+        ItemStack ownedItem = itemInHand.clone();
+        player.getInventory().setItemInMainHand(new ItemStack(Material.AIR));
 
         PlayerPreference pref = preferenceManager.getCached(player.getUniqueId());
         boolean fastSell = pref != null && pref.fastSellEnabled() && player.hasPermission("donutauction.fastsell");
@@ -114,19 +119,17 @@ public final class AuctionCommand implements CommandExecutor, TabCompleter {
             final int finalDuration = duration;
             final AuctionFilterCategory finalCategory = category;
 
-            player.getInventory().setItemInMainHand(new ItemStack(org.bukkit.Material.AIR));
-            auctionService.createAuctionFromItem(player, itemInHand, price, finalDuration, finalCategory)
+            // createAuctionFromItem restores the item on any failure (including full inventory via drop).
+            auctionService.createAuctionFromItem(player, ownedItem, price, finalDuration, finalCategory)
                     .thenAccept(result -> plugin.schedulerAdapter().runEntity(player, () -> {
                         plugin.messages().send(player, result.message());
                         if (result.success()) {
                             guiManager.openPlayerItems(player);
-                        } else {
-                            player.getInventory().addItem(itemInHand.clone());
                         }
                     }));
         } else {
-            player.getInventory().setItemInMainHand(new ItemStack(org.bukkit.Material.AIR));
-            SellGui sellGui = new SellGui(guiManager, auctionService, preferenceManager, itemInHand, price, pref);
+            PendingSaleTransaction transaction = auctionService.beginPendingSale(player, ownedItem, price);
+            SellGui sellGui = new SellGui(guiManager, auctionService, preferenceManager, transaction, pref);
             guiManager.openSellGui(player, sellGui);
         }
     }

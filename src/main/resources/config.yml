@@ -49,6 +49,10 @@ fast-sell:
   default-state: false
   require-permission: true
 
+debug:
+  # When true, logs every invalid/repeated pending-sale claim. When false, samples only.
+  pending-sales: false
+
 shulker-support:
   enabled: true
   preview-contents: true

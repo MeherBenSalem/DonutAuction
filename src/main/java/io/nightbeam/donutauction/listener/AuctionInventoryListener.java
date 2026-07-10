@@ -3,20 +3,23 @@ package io.nightbeam.donutauction.listener;
 import io.nightbeam.donutauction.gui.BaseGui;
 import io.nightbeam.donutauction.gui.GuiManager;
 import io.nightbeam.donutauction.gui.SellGui;
+import io.nightbeam.donutauction.service.AuctionService;
+import java.util.UUID;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
-import org.bukkit.inventory.ItemStack;
 
 public final class AuctionInventoryListener implements Listener {
 
     private final GuiManager guiManager;
+    private final AuctionService auctionService;
 
-    public AuctionInventoryListener(GuiManager guiManager) {
+    public AuctionInventoryListener(GuiManager guiManager, AuctionService auctionService) {
         this.guiManager = guiManager;
+        this.auctionService = auctionService;
     }
 
     @EventHandler
@@ -41,13 +44,16 @@ public final class AuctionInventoryListener implements Listener {
         }
 
         if (event.getView().getTopInventory().getHolder(false) instanceof SellGui sellGui) {
-            if (!sellGui.isConfirmed()) {
-                ItemStack item = sellGui.getItemToSell();
-                guiManager.plugin().schedulerAdapter().runEntity(player, () -> {
-                    java.util.Map<Integer, ItemStack> leftovers = player.getInventory().addItem(item);
-                    leftovers.values().forEach(leftover -> player.getWorld().dropItemNaturally(player.getLocation(), leftover));
-                });
+            // Re-opening the same SellGui (duration/category selection) sets navigating — do not settle.
+            if (guiManager.isNavigating(player.getUniqueId())) {
+                return;
             }
+
+            // Confirm/cancel already claimed the transaction; this is idempotent.
+            UUID transactionId = sellGui.getTransactionId();
+            guiManager.plugin().schedulerAdapter().runEntity(player, () ->
+                    auctionService.cancelPendingSale(player, transactionId)
+            );
             return;
         }
 

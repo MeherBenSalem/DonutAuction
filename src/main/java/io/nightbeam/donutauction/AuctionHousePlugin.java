@@ -99,9 +99,9 @@ public final class AuctionHousePlugin extends JavaPlugin {
     }
 
     private void registerListeners() {
-        getServer().getPluginManager().registerEvents(new AuctionInventoryListener(guiManager), this);
+        getServer().getPluginManager().registerEvents(new AuctionInventoryListener(guiManager, auctionService), this);
         getServer().getPluginManager().registerEvents(new AuctionChatListener(guiManager), this);
-        getServer().getPluginManager().registerEvents(new PlayerQuitListener(guiManager, preferenceManager), this);
+        getServer().getPluginManager().registerEvents(new PlayerQuitListener(guiManager, auctionService, preferenceManager), this);
     }
 
     private void registerCommand(String name, AuctionCommand command) {
@@ -151,6 +151,7 @@ public final class AuctionHousePlugin extends JavaPlugin {
         getConfig().addDefault("update-checker.notify-console", true);
         getConfig().addDefault("update-checker.notify-admins", true);
         getConfig().addDefault("update-checker.check-interval-hours", 12);
+        getConfig().addDefault("debug.pending-sales", false);
         getConfig().options().copyDefaults(true);
         saveConfig();
     }

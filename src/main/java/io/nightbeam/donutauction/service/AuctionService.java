@@ -9,6 +9,7 @@ import io.nightbeam.donutauction.model.AuctionListing;
 import io.nightbeam.donutauction.model.AuctionPage;
 import io.nightbeam.donutauction.model.AuctionStatus;
 import io.nightbeam.donutauction.model.ListingPriceValidationResult;
+import io.nightbeam.donutauction.model.PendingSaleTransaction;
 import io.nightbeam.donutauction.storage.AuctionRepository;
 import io.nightbeam.donutauction.util.ItemLoreApplier;
 import io.nightbeam.donutauction.util.SchedulerAdapter;
@@ -38,6 +39,7 @@ public final class AuctionService {
     private final AuctionRepository repository;
     private final AuctionManager auctionManager;
     private final DonutCoreHook donutCoreHook;
+    private final PendingSaleRegistry pendingSaleRegistry;
     private final Map<UUID, AtomicBoolean> operationLocks = new ConcurrentHashMap<>();
 
     private ScheduledTask expiryTask;
@@ -56,6 +58,8 @@ public final class AuctionService {
         this.repository = repository;
         this.auctionManager = auctionManager;
         this.donutCoreHook = donutCoreHook;
+        boolean debugPending = plugin.getConfig().getBoolean("debug.pending-sales", false);
+        this.pendingSaleRegistry = new PendingSaleRegistry(plugin.getLogger(), debugPending);
     }
 
     public void initialize() {
@@ -77,7 +81,75 @@ public final class AuctionService {
         if (expiryTask != null) {
             expiryTask.cancel();
         }
+        recoverPendingSalesOnShutdown();
         schedulerAdapter.shutdown();
+    }
+
+    /**
+     * Starts a pending sale after the item has been removed from the player inventory.
+     * If a previous pending sale existed for this player, that item is restored first.
+     */
+    public PendingSaleTransaction beginPendingSale(Player player, ItemStack item, double price) {
+        PendingSaleRegistry.BeginResult beginResult = pendingSaleRegistry.begin(player.getUniqueId(), item, price);
+        if (beginResult.replaced() != null) {
+            restoreItem(player, beginResult.replaced().item());
+            plugin.getLogger().warning("Player " + player.getName()
+                    + " started a new pending sale while another was open; previous item was restored.");
+        }
+        return beginResult.created();
+    }
+
+    /**
+     * Atomically claims and returns the pending sale item to the player.
+     * Safe to call multiple times — only the first successful claim returns the item.
+     *
+     * @return true if this call owned and returned the item
+     */
+    public boolean cancelPendingSale(Player player, UUID transactionId) {
+        PendingSaleRegistry.ClaimResult claim = pendingSaleRegistry.claim(transactionId, player.getUniqueId());
+        if (!claim.success()) {
+            return false;
+        }
+        restoreItem(player, claim.transaction().item());
+        return true;
+    }
+
+    /**
+     * Claims any pending sale for the player (disconnect / inventory close / recovery).
+     *
+     * @return true if an item was returned
+     */
+    public boolean cancelPendingSaleForPlayer(Player player) {
+        PendingSaleRegistry.ClaimResult claim = pendingSaleRegistry.claimByPlayer(player.getUniqueId());
+        if (!claim.success()) {
+            return false;
+        }
+        restoreItem(player, claim.transaction().item());
+        return true;
+    }
+
+    /**
+     * Atomically claims the pending sale and lists the item. Idempotent against
+     * double-clicks and concurrent cancel/close paths.
+     */
+    public CompletableFuture<ActionResult> confirmPendingSale(
+            Player player,
+            UUID transactionId,
+            int durationHours,
+            AuctionFilterCategory category
+    ) {
+        PendingSaleRegistry.ClaimResult claim = pendingSaleRegistry.claim(transactionId, player.getUniqueId());
+        if (!claim.success()) {
+            return CompletableFuture.completedFuture(
+                    ActionResult.failure("&cThat sell confirmation is no longer valid.")
+            );
+        }
+        PendingSaleTransaction transaction = claim.transaction();
+        return createAuctionFromItem(player, transaction.item(), transaction.price(), durationHours, category);
+    }
+
+    public PendingSaleRegistry pendingSaleRegistry() {
+        return pendingSaleRegistry;
     }
 
     public AuctionPage browse(AuctionBrowseRequest request) {
@@ -112,29 +184,34 @@ public final class AuctionService {
             return CompletableFuture.completedFuture(ActionResult.failure("&cThe item is invalid."));
         }
 
+        // Always work from a defensive clone so NBT/components are preserved independently of caller state.
+        ItemStack listingItem = item.clone();
+
         double minPrice = plugin.getConfig().getDouble("auction.min-price", 10.0D);
         double maxPrice = plugin.getConfig().getDouble("auction.max-price", 1.0E9);
         ListingPriceValidationResult validationResult = ListingPriceValidationResult.validate(price, minPrice, maxPrice);
         if (validationResult == ListingPriceValidationResult.BELOW_MINIMUM) {
+            restoreItem(player, listingItem);
             String message = plugin.getConfig().getString("messages.price-below-min", "&cMinimum auction price is &6%min_price%&c.");
             message = message.replace("%min_price%", economyProvider.format(Math.max(0.0D, minPrice)));
             return CompletableFuture.completedFuture(ActionResult.failure(message));
         }
         if (validationResult == ListingPriceValidationResult.INVALID_OR_ABOVE_MAX) {
+            restoreItem(player, listingItem);
             return CompletableFuture.completedFuture(ActionResult.failure("&cPrice must be greater than 0 and below the configured limit."));
         }
 
         long now = System.currentTimeMillis();
         long durationMillis = Math.max(1L, durationHours) * 3_600_000L;
-        AuctionListing listing = new AuctionListing(UUID.randomUUID(), item.clone(), player.getUniqueId(), price, now, now + durationMillis, AuctionStatus.ACTIVE, null, 0L, false);
+        AuctionListing listing = new AuctionListing(UUID.randomUUID(), listingItem.clone(), player.getUniqueId(), price, now, now + durationMillis, AuctionStatus.ACTIVE, null, 0L, false);
 
         return repository.save(listing)
                 .thenApply(ignored -> {
                     auctionManager.upsert(listing);
-                    return ActionResult.success("&aListed " + itemName(item) + " for &6" + economyProvider.format(price) + "&a.");
+                    return ActionResult.success("&aListed " + itemName(listingItem) + " for &6" + economyProvider.format(price) + "&a.");
                 })
                 .exceptionally(throwable -> {
-                    schedulerAdapter.runEntity(player, () -> restoreItem(player, item));
+                    schedulerAdapter.runEntity(player, () -> restoreItem(player, listingItem));
                     plugin.getLogger().severe("Failed to save auction listing: " + throwable.getMessage());
                     return ActionResult.failure("&cFailed to create the auction. Your item was returned.");
                 });
@@ -206,11 +283,18 @@ public final class AuctionService {
     }
 
     public CompletableFuture<ActionResult> cancelAuction(Player seller, UUID auctionId) {
+        AtomicBoolean operationLock = operationLocks.computeIfAbsent(auctionId, ignored -> new AtomicBoolean());
+        if (!operationLock.compareAndSet(false, true)) {
+            return CompletableFuture.completedFuture(ActionResult.failure("&cThat auction is already being processed."));
+        }
+
         AuctionListing listing = auctionManager.findCached(auctionId);
         if (listing == null || !listing.seller().equals(seller.getUniqueId())) {
+            releaseOperationLock(auctionId, operationLock);
             return CompletableFuture.completedFuture(ActionResult.failure("&cAuction not found."));
         }
         if (listing.status() != AuctionStatus.ACTIVE) {
+            releaseOperationLock(auctionId, operationLock);
             return CompletableFuture.completedFuture(ActionResult.failure("&cOnly active auctions can be cancelled."));
         }
 
@@ -226,19 +310,27 @@ public final class AuctionService {
                     plugin.getLogger().severe("Failed to persist cancellation: " + throwable.getMessage());
                     auctionManager.upsert(listing);
                     return ActionResult.failure("&cFailed to cancel auction. Please try again.");
-                });
+                })
+                .whenComplete((result, throwable) -> releaseOperationLock(auctionId, operationLock));
     }
 
     public CompletableFuture<ActionResult> collectSellerProceeds(Player seller, UUID auctionId) {
+        AtomicBoolean operationLock = operationLocks.computeIfAbsent(auctionId, ignored -> new AtomicBoolean());
+        if (!operationLock.compareAndSet(false, true)) {
+            return CompletableFuture.completedFuture(ActionResult.failure("&cThat auction is already being processed."));
+        }
+
         AuctionListing listing = auctionManager.findCached(auctionId);
         if (listing == null || !listing.seller().equals(seller.getUniqueId())) {
+            releaseOperationLock(auctionId, operationLock);
             return CompletableFuture.completedFuture(ActionResult.failure("&cAuction not found."));
         }
         if (listing.sellerClaimed()) {
+            releaseOperationLock(auctionId, operationLock);
             return CompletableFuture.completedFuture(ActionResult.failure("&cThat auction has already been collected."));
         }
 
-        if (listing.status() == AuctionStatus.SOLD && !listing.sellerClaimed()) {
+        if (listing.status() == AuctionStatus.SOLD) {
             AuctionListing claimed = listing.markSellerClaimed();
             auctionManager.upsert(claimed);
             return repository.update(claimed)
@@ -246,7 +338,8 @@ public final class AuctionService {
                     .exceptionally(throwable -> {
                         auctionManager.upsert(listing);
                         return ActionResult.failure("&cUnable to update the collection state.");
-                    });
+                    })
+                    .whenComplete((result, throwable) -> releaseOperationLock(auctionId, operationLock));
         }
 
         if (listing.status() == AuctionStatus.EXPIRED || listing.status() == AuctionStatus.CANCELLED) {
@@ -260,10 +353,17 @@ public final class AuctionService {
                     .exceptionally(throwable -> {
                         auctionManager.upsert(listing);
                         return ActionResult.failure("&cUnable to update the collection state. Please try again.");
-                    });
+                    })
+                    .whenComplete((result, throwable) -> releaseOperationLock(auctionId, operationLock));
         }
 
+        releaseOperationLock(auctionId, operationLock);
         return CompletableFuture.completedFuture(ActionResult.failure("&cNothing to collect for that auction."));
+    }
+
+    private void releaseOperationLock(UUID auctionId, AtomicBoolean operationLock) {
+        operationLock.set(false);
+        operationLocks.remove(auctionId, operationLock);
     }
 
     public Optional<AuctionListing> findListing(UUID auctionId) {
@@ -321,13 +421,41 @@ public final class AuctionService {
         inventory.setItemInMainHand(new ItemStack(Material.AIR));
     }
 
-    private void restoreItem(Player player, ItemStack itemStack) {
+    /**
+     * Returns an item to the player inventory. Preserves full item data via clone.
+     * Overflow drops at the player's location (existing recovery behavior).
+     */
+    public void restoreItem(Player player, ItemStack itemStack) {
+        if (player == null || itemStack == null || itemStack.getType() == Material.AIR) {
+            return;
+        }
         Map<Integer, ItemStack> leftovers = player.getInventory().addItem(itemStack.clone());
-        leftovers.values().forEach(leftover -> player.getWorld().dropItemNaturally(player.getLocation(), leftover));
+        leftovers.values().forEach(leftover -> {
+            if (player.getWorld() != null) {
+                player.getWorld().dropItemNaturally(player.getLocation(), leftover);
+            }
+        });
     }
 
     private void deliverItem(Player player, ItemStack itemStack) {
         restoreItem(player, itemStack);
+    }
+
+    private void recoverPendingSalesOnShutdown() {
+        List<PendingSaleTransaction> pending = pendingSaleRegistry.drainAll();
+        if (pending.isEmpty()) {
+            return;
+        }
+        plugin.getLogger().info("Recovering " + pending.size() + " pending sale(s) on shutdown.");
+        for (PendingSaleTransaction transaction : pending) {
+            Player player = Bukkit.getPlayer(transaction.playerId());
+            if (player != null && player.isOnline()) {
+                restoreItem(player, transaction.item());
+            } else {
+                plugin.getLogger().warning("Could not return pending sale item for offline player "
+                        + transaction.playerId() + " (tx=" + transaction.transactionId() + "). Item may be lost.");
+            }
+        }
     }
 
     private String itemName(ItemStack itemStack) {
