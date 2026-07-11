@@ -44,12 +44,16 @@ public final class AuctionInventoryListener implements Listener {
         }
 
         if (event.getView().getTopInventory().getHolder(false) instanceof SellGui sellGui) {
-            // Re-opening the same SellGui (duration/category selection) sets navigating — do not settle.
-            if (guiManager.isNavigating(player.getUniqueId())) {
+            // Re-opening the same SellGui (duration/category selection) — do not settle.
+            if (sellGui.consumeReopening()) {
+                return;
+            }
+            // Confirm/cancel already claimed the transaction and will settle it themselves.
+            if (sellGui.isSettlementStarted()) {
                 return;
             }
 
-            // Confirm/cancel already claimed the transaction; this is idempotent.
+            // Genuine dismissal (ESC / click away): return the pending item. Idempotent via atomic claim.
             UUID transactionId = sellGui.getTransactionId();
             guiManager.plugin().schedulerAdapter().runEntity(player, () ->
                     auctionService.cancelPendingSale(player, transactionId)

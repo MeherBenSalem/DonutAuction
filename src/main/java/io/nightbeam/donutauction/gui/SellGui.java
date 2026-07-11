@@ -24,6 +24,21 @@ public final class SellGui extends BaseGui {
     private static final int[] DURATION_OPTIONS = {6, 12, 24, 48, 72, 168};
     private static final String[] DURATION_LABELS = {"6 Hours", "12 Hours", "1 Day", "2 Days", "3 Days", "1 Week"};
 
+    private static final int INVENTORY_SIZE = 45;
+    private static final int DISPLAY_SLOT = 4;
+    private static final int PRICE_SLOT = 13;
+    private static final int DURATION_SLOT_START = 18;
+    private static final int CATEGORY_SLOT_START = 27;
+    // Buttons live in the bottom row (36-44) so they never overlap the category row (27-35).
+    private static final int CONFIRM_SLOT = 40;
+    private static final int CANCEL_SLOT = 44;
+
+    private static final AuctionFilterCategory[] CATEGORIES = {
+            AuctionFilterCategory.ALL, AuctionFilterCategory.BLOCKS, AuctionFilterCategory.TOOLS,
+            AuctionFilterCategory.FOOD, AuctionFilterCategory.COMBAT, AuctionFilterCategory.POTIONS,
+            AuctionFilterCategory.BOOKS, AuctionFilterCategory.INGREDIENTS, AuctionFilterCategory.UTILITIES
+    };
+
     private final GuiManager guiManager;
     private final AuctionService auctionService;
     private final PlayerPreferenceManager preferenceManager;
@@ -34,6 +49,8 @@ public final class SellGui extends BaseGui {
     private AuctionFilterCategory selectedCategory = AuctionFilterCategory.ALL;
     /** Prevents concurrent click handlers from racing before the atomic claim completes. */
     private final AtomicBoolean settlementStarted = new AtomicBoolean(false);
+    /** Set right before a programmatic re-open (duration/category change) so the close handler does not settle. */
+    private final AtomicBoolean reopening = new AtomicBoolean(false);
 
     public SellGui(GuiManager guiManager, AuctionService auctionService, PlayerPreferenceManager preferenceManager,
                    PendingSaleTransaction transaction, PlayerPreference preference) {
@@ -62,40 +79,34 @@ public final class SellGui extends BaseGui {
 
     @Override
     public Inventory render(Player player) {
-        Inventory inventory = attach(Bukkit.createInventory(this, 36, TITLE));
+        Inventory inventory = attach(Bukkit.createInventory(this, INVENTORY_SIZE, TITLE));
 
-        inventory.setItem(4, displayItem.clone());
+        inventory.setItem(DISPLAY_SLOT, displayItem.clone());
 
         for (int i = 0; i < DURATION_OPTIONS.length; i++) {
             boolean selected = i == selectedDurationIndex;
             Material material = selected ? Material.LIME_STAINED_GLASS_PANE : Material.GRAY_STAINED_GLASS_PANE;
-            inventory.setItem(18 + i, ItemBuilder.of(material)
+            inventory.setItem(DURATION_SLOT_START + i, ItemBuilder.of(material)
                     .name(Component.text(DURATION_LABELS[i], selected ? NamedTextColor.GREEN : NamedTextColor.WHITE))
                     .lore(selected ? Component.text("Selected", NamedTextColor.GREEN) : Component.text("Click to select", NamedTextColor.GRAY))
                     .build());
         }
 
-        AuctionFilterCategory[] categories = {
-                AuctionFilterCategory.ALL, AuctionFilterCategory.BLOCKS, AuctionFilterCategory.TOOLS,
-                AuctionFilterCategory.FOOD, AuctionFilterCategory.COMBAT, AuctionFilterCategory.POTIONS,
-                AuctionFilterCategory.BOOKS, AuctionFilterCategory.INGREDIENTS, AuctionFilterCategory.UTILITIES
-        };
-
-        for (int i = 0; i < categories.length; i++) {
-            AuctionFilterCategory cat = categories[i];
+        for (int i = 0; i < CATEGORIES.length; i++) {
+            AuctionFilterCategory cat = CATEGORIES[i];
             boolean selected = cat == selectedCategory;
-            inventory.setItem(27 + i, ItemBuilder.of(selected ? Material.LIME_STAINED_GLASS_PANE : cat.icon())
+            inventory.setItem(CATEGORY_SLOT_START + i, ItemBuilder.of(selected ? Material.LIME_STAINED_GLASS_PANE : cat.icon())
                     .name(Component.text(cat.displayName(), selected ? NamedTextColor.GREEN : NamedTextColor.WHITE))
                     .lore(selected ? Component.text("Selected", NamedTextColor.GREEN) : Component.text("Click to select", NamedTextColor.GRAY))
                     .build());
         }
 
-        inventory.setItem(13, ItemBuilder.of(Material.GOLD_INGOT)
+        inventory.setItem(PRICE_SLOT, ItemBuilder.of(Material.GOLD_INGOT)
                 .name(Component.text("Price: " + auctionService.formatPrice(price), NamedTextColor.GOLD))
                 .lore(Component.text("Duration: " + DURATION_LABELS[selectedDurationIndex], NamedTextColor.GRAY))
                 .build());
 
-        inventory.setItem(31, ItemBuilder.of(Material.LIME_STAINED_GLASS_PANE)
+        inventory.setItem(CONFIRM_SLOT, ItemBuilder.of(Material.LIME_STAINED_GLASS_PANE)
                 .name(Component.text("Confirm Listing", NamedTextColor.GREEN))
                 .lore(
                         Component.text("List this item for " + auctionService.formatPrice(price), NamedTextColor.GRAY),
@@ -103,7 +114,7 @@ public final class SellGui extends BaseGui {
                 )
                 .build());
 
-        inventory.setItem(35, ItemBuilder.of(Material.RED_STAINED_GLASS_PANE)
+        inventory.setItem(CANCEL_SLOT, ItemBuilder.of(Material.RED_STAINED_GLASS_PANE)
                 .name(Component.text("Cancel", NamedTextColor.RED))
                 .lore(Component.text("Go back without listing", NamedTextColor.GRAY))
                 .build());
@@ -123,25 +134,7 @@ public final class SellGui extends BaseGui {
 
         int slot = event.getSlot();
 
-        if (slot >= 18 && slot < 18 + DURATION_OPTIONS.length) {
-            selectedDurationIndex = slot - 18;
-            guiManager.plugin().schedulerAdapter().runEntity(player, () -> guiManager.openSellGui(player, this));
-            return;
-        }
-
-        AuctionFilterCategory[] categories = {
-                AuctionFilterCategory.ALL, AuctionFilterCategory.BLOCKS, AuctionFilterCategory.TOOLS,
-                AuctionFilterCategory.FOOD, AuctionFilterCategory.COMBAT, AuctionFilterCategory.POTIONS,
-                AuctionFilterCategory.BOOKS, AuctionFilterCategory.INGREDIENTS, AuctionFilterCategory.UTILITIES
-        };
-
-        if (slot >= 27 && slot < 27 + categories.length) {
-            selectedCategory = categories[slot - 27];
-            guiManager.plugin().schedulerAdapter().runEntity(player, () -> guiManager.openSellGui(player, this));
-            return;
-        }
-
-        if (slot == 31) {
+        if (slot == CONFIRM_SLOT) {
             if (!settlementStarted.compareAndSet(false, true)) {
                 return;
             }
@@ -170,7 +163,7 @@ public final class SellGui extends BaseGui {
             return;
         }
 
-        if (slot == 35) {
+        if (slot == CANCEL_SLOT) {
             if (!settlementStarted.compareAndSet(false, true)) {
                 return;
             }
@@ -178,16 +171,39 @@ public final class SellGui extends BaseGui {
                 auctionService.cancelPendingSale(player, transactionId);
                 guiManager.openAuctionHouse(player);
             });
+            return;
         }
+
+        if (slot >= DURATION_SLOT_START && slot < DURATION_SLOT_START + DURATION_OPTIONS.length) {
+            selectedDurationIndex = slot - DURATION_SLOT_START;
+            reopen(player);
+            return;
+        }
+
+        if (slot >= CATEGORY_SLOT_START && slot < CATEGORY_SLOT_START + CATEGORIES.length) {
+            selectedCategory = CATEGORIES[slot - CATEGORY_SLOT_START];
+            reopen(player);
+        }
+    }
+
+    /** Re-renders the GUI in place, flagging the close as a navigation so the item is not returned. */
+    private void reopen(Player player) {
+        guiManager.plugin().schedulerAdapter().runEntity(player, () -> {
+            reopening.set(true);
+            guiManager.openSellGui(player, this);
+        });
+    }
+
+    /** True (once) if the pending close is a programmatic re-open rather than a genuine dismissal. */
+    public boolean consumeReopening() {
+        return reopening.getAndSet(false);
     }
 
     public UUID getTransactionId() {
         return transactionId;
     }
 
-    /**
-     * @deprecated Use transaction claim APIs; kept for compatibility checks.
-     */
+    /** True once confirm or cancel has claimed the transaction; the close handler must not settle again. */
     public boolean isSettlementStarted() {
         return settlementStarted.get();
     }
