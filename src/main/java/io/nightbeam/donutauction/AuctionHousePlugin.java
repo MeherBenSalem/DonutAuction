@@ -20,6 +20,7 @@ import io.nightbeam.donutauction.storage.SqlPlayerPreferenceRepository;
 import io.nightbeam.donutauction.util.MessageUtil;
 import io.nightbeam.donutauction.util.SchedulerAdapter;
 import io.nightbeam.donutauction.util.UpdateChecker;
+import java.util.Optional;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -44,8 +45,15 @@ public final class AuctionHousePlugin extends JavaPlugin {
         applyConfigDefaults();
 
         this.schedulerAdapter = new SchedulerAdapter(this);
-        this.economyProvider = VaultEconomyProvider.create(this)
-                .orElseThrow(() -> new IllegalStateException("Vault economy provider was not found."));
+        Optional<VaultEconomyProvider> economy = VaultEconomyProvider.create(this);
+        if (economy.isEmpty()) {
+            getLogger().severe(
+                    "DonutAuctionHouse requires a Vault-compatible Economy service "
+                            + "(Vault or VaultUnlocked + an economy plugin). Disabling.");
+            getServer().getPluginManager().disablePlugin(this);
+            return;
+        }
+        this.economyProvider = economy.get();
         this.databaseManager = DatabaseManager.fromConfig(this);
         this.databaseManager.start();
 

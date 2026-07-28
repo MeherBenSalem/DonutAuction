@@ -5,11 +5,11 @@
 
     <groupId>io.nightbeam</groupId>
     <artifactId>donutauction</artifactId>
-    <version>1.2.1</version>
+    <version>1.2.2</version>
     <packaging>jar</packaging>
 
     <name>DonutAuctionHouse</name>
-    <description>Standalone Minecraft auction house plugin with Vault economy and optional DonutCore integration.</description>
+    <description>Standalone Minecraft auction house plugin with Vault/VaultUnlocked economy and optional DonutCore integration.</description>
 
     <properties>
         <java.version>21</java.version>
