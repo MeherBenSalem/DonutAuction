@@ -148,6 +148,23 @@ public final class AuctionService {
         return createAuctionFromItem(player, transaction.item(), transaction.price(), durationHours, category);
     }
 
+    public CompletableFuture<ActionResult> confirmPendingSale(
+            Player player,
+            UUID transactionId,
+            int durationHours,
+            AuctionFilterCategory category,
+            double listingPrice
+    ) {
+        PendingSaleRegistry.ClaimResult claim = pendingSaleRegistry.claim(transactionId, player.getUniqueId());
+        if (!claim.success()) {
+            return CompletableFuture.completedFuture(
+                    ActionResult.failure("&cThat sell confirmation is no longer valid.")
+            );
+        }
+        PendingSaleTransaction transaction = claim.transaction();
+        return createAuctionFromItem(player, transaction.item(), listingPrice, durationHours, category);
+    }
+
     public PendingSaleRegistry pendingSaleRegistry() {
         return pendingSaleRegistry;
     }
@@ -376,6 +393,22 @@ public final class AuctionService {
 
     public String formatPrice(double price) {
         return economyProvider.format(price);
+    }
+
+    public double getBalance(OfflinePlayer player) {
+        return economyProvider.getBalance(player);
+    }
+
+    public double getMinListingPrice() {
+        return plugin.getConfig().getDouble("auction.min-price", 10.0D);
+    }
+
+    public double getMaxListingPrice() {
+        return plugin.getConfig().getDouble("auction.max-price", 1.0E9);
+    }
+
+    public double clampListingPrice(double price) {
+        return Math.max(getMinListingPrice(), Math.min(getMaxListingPrice(), price));
     }
 
     public ItemLoreApplier.LoreMode getLoreMode() {

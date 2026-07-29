@@ -65,4 +65,8 @@ public final class VaultEconomyProvider {
     public String format(double amount) {
         return economy.format(amount);
     }
+
+    public double getBalance(OfflinePlayer player) {
+        return economy.getBalance(player);
+    }
 }

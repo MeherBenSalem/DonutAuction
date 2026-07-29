@@ -2,9 +2,12 @@ package io.nightbeam.donutauction.gui;
 
 import io.nightbeam.donutauction.AuctionHousePlugin;
 import io.nightbeam.donutauction.hook.DonutCoreHook;
+import io.nightbeam.donutauction.model.AuctionFilterCategory;
 import io.nightbeam.donutauction.model.AuctionListing;
+import io.nightbeam.donutauction.model.PendingSaleTransaction;
 import io.nightbeam.donutauction.model.PlayerAuctionSession;
 import io.nightbeam.donutauction.model.PlayerPreference;
+import io.nightbeam.donutauction.service.AuctionLimitService;
 import io.nightbeam.donutauction.service.AuctionManager;
 import io.nightbeam.donutauction.service.AuctionService;
 import io.nightbeam.donutauction.service.PlayerPreferenceManager;
@@ -12,6 +15,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.inventory.ItemStack;
@@ -22,6 +26,7 @@ public final class GuiManager {
     private final AuctionService auctionService;
     private final AuctionManager auctionManager;
     private final PlayerPreferenceManager preferenceManager;
+    private final AuctionLimitService limitService;
     private final DonutCoreHook donutCoreHook;
     private final Map<UUID, PlayerAuctionSession> sessions = new ConcurrentHashMap<>();
     private final Map<UUID, Integer> playerItemsPages = new ConcurrentHashMap<>();
@@ -29,11 +34,13 @@ public final class GuiManager {
     private final Set<UUID> navigating = ConcurrentHashMap.newKeySet();
 
     public GuiManager(AuctionHousePlugin plugin, AuctionService auctionService, AuctionManager auctionManager,
-                      PlayerPreferenceManager preferenceManager, DonutCoreHook donutCoreHook) {
+                      PlayerPreferenceManager preferenceManager, AuctionLimitService limitService,
+                      DonutCoreHook donutCoreHook) {
         this.plugin = plugin;
         this.auctionService = auctionService;
         this.auctionManager = auctionManager;
         this.preferenceManager = preferenceManager;
+        this.limitService = limitService;
         this.donutCoreHook = donutCoreHook;
     }
 
@@ -63,6 +70,90 @@ public final class GuiManager {
 
     public void openShulkerPreview(Player player, ItemStack shulkerItem) {
         open(player, new ShulkerPreviewGui(this, shulkerItem));
+    }
+
+    /**
+     * Starts the sell flow for the item in the player's main hand.
+     * Uses stored last price when available, otherwise the configured minimum price.
+     */
+    public void startSellFromHeldItem(Player player) {
+        if (!player.hasPermission("donutcore.auction.sell") && !player.hasPermission("donutauction.sell")) {
+            plugin.messages().send(player, "&cYou do not have permission to sell items.");
+            return;
+        }
+
+        ItemStack itemInHand = player.getInventory().getItemInMainHand();
+        if (itemInHand == null || itemInHand.getType() == Material.AIR) {
+            plugin.messages().send(player, "&cHold the item you want to list.");
+            return;
+        }
+
+        int activeCount = auctionService.getPlayerActiveAuctionCount(player.getUniqueId());
+        if (!limitService.canCreateListing(player, activeCount)) {
+            int limit = limitService.getEffectiveLimit(player);
+            plugin.messages().send(player, "&cYou have reached your auction limit of " + limit + " listings.");
+            return;
+        }
+
+        PlayerPreference pref = preferenceManager.getCached(player.getUniqueId());
+        double price = pref != null && pref.lastPrice() > 0.0D
+                ? pref.lastPrice()
+                : auctionService.getMinListingPrice();
+
+        startSellFromHeldItem(player, price);
+    }
+
+    public void startSellFromHeldItem(Player player, double price) {
+        if (!player.hasPermission("donutcore.auction.sell") && !player.hasPermission("donutauction.sell")) {
+            plugin.messages().send(player, "&cYou do not have permission to sell items.");
+            return;
+        }
+
+        ItemStack itemInHand = player.getInventory().getItemInMainHand();
+        if (itemInHand == null || itemInHand.getType() == Material.AIR) {
+            plugin.messages().send(player, "&cHold the item you want to list.");
+            return;
+        }
+
+        int activeCount = auctionService.getPlayerActiveAuctionCount(player.getUniqueId());
+        if (!limitService.canCreateListing(player, activeCount)) {
+            int limit = limitService.getEffectiveLimit(player);
+            plugin.messages().send(player, "&cYou have reached your auction limit of " + limit + " listings.");
+            return;
+        }
+
+        ItemStack ownedItem = itemInHand.clone();
+        player.getInventory().setItemInMainHand(new ItemStack(Material.AIR));
+
+        double listingPrice = auctionService.clampListingPrice(price);
+
+        PlayerPreference pref = preferenceManager.getCached(player.getUniqueId());
+        boolean fastSell = pref != null && pref.fastSellEnabled() && player.hasPermission("donutauction.fastsell");
+
+        if (fastSell) {
+            int duration = pref != null ? pref.lastDurationHours() : plugin.getConfig().getInt("auction.listing-duration-hours", 48);
+            AuctionFilterCategory category = AuctionFilterCategory.ALL;
+            if (pref != null) {
+                try {
+                    category = AuctionFilterCategory.valueOf(pref.lastCategory());
+                } catch (IllegalArgumentException ignored) {
+                }
+            }
+            final int finalDuration = duration;
+            final AuctionFilterCategory finalCategory = category;
+
+            auctionService.createAuctionFromItem(player, ownedItem, listingPrice, finalDuration, finalCategory)
+                    .thenAccept(result -> plugin.schedulerAdapter().runEntity(player, () -> {
+                        plugin.messages().send(player, result.message());
+                        if (result.success()) {
+                            openPlayerItems(player);
+                        }
+                    }));
+        } else {
+            PendingSaleTransaction transaction = auctionService.beginPendingSale(player, ownedItem, listingPrice);
+            SellGui sellGui = new SellGui(this, auctionService, preferenceManager, transaction, pref);
+            openSellGui(player, sellGui);
+        }
     }
 
     public void setPlayerItemsPage(UUID playerId, int page) {

@@ -44,12 +44,10 @@ public final class AuctionInventoryListener implements Listener {
         }
 
         if (event.getView().getTopInventory().getHolder(false) instanceof SellGui sellGui) {
-            // Re-opening the same SellGui (duration/category selection) sets navigating — do not settle.
-            if (guiManager.isNavigating(player.getUniqueId())) {
+            if (sellGui.consumeReopening() || sellGui.isSettlementStarted()) {
                 return;
             }
 
-            // Confirm/cancel already claimed the transaction; this is idempotent.
             UUID transactionId = sellGui.getTransactionId();
             guiManager.plugin().schedulerAdapter().runEntity(player, () ->
                     auctionService.cancelPendingSale(player, transactionId)

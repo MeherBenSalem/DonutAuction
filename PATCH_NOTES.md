@@ -1,6 +1,15 @@
-# DonutAuctionHouse 1.2.0 Patch Notes
+# DonutAuctionHouse Patch Notes
 
-## Quality of Life & Marketplace Expansion Update
+## 1.3.0 — Sell GUI fixes & marketplace QoL
+
+- Sell GUI expanded to 45 slots; confirm/cancel moved to bottom row
+- Price +/- controls in sell GUI; sell-from-GUI emerald button on main auction house
+- Confirm purchase GUI layout refresh with balance display
+- Fixed sell-menu close/reopen duplication and unreachable confirm/cancel
+
+See `DonutAuctionHouse-1.3.0-PatchNotes.md` for full release notes.
+
+## 1.2.0 — Quality of Life & Marketplace Expansion Update
 
 ### Feature 1 — Permission-Based Auction Limits
 

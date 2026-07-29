@@ -73,7 +73,7 @@ public final class AuctionHousePlugin extends JavaPlugin {
         this.limitService = new AuctionLimitService(this);
 
         this.auctionService = new AuctionService(this, schedulerAdapter, economyProvider, auctionRepository, auctionManager, donutCoreHook);
-        this.guiManager = new GuiManager(this, auctionService, auctionManager, preferenceManager, donutCoreHook);
+        this.guiManager = new GuiManager(this, auctionService, auctionManager, preferenceManager, limitService, donutCoreHook);
 
         this.auctionService.initialize();
 

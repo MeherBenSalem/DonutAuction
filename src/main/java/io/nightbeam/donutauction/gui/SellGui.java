@@ -19,6 +19,12 @@ import org.bukkit.inventory.ItemStack;
 
 public final class SellGui extends BaseGui {
 
+    static final int CONFIRM_SLOT = 40;
+    static final int CANCEL_SLOT = 44;
+    static final int PRICE_DISPLAY_SLOT = 13;
+    static final int PRICE_DECREASE_SLOT = 12;
+    static final int PRICE_INCREASE_SLOT = 14;
+
     private static final Component TITLE = Component.text("ꜱᴇʟʟ ɪᴛᴇᴍ", NamedTextColor.GOLD);
 
     private static final int[] DURATION_OPTIONS = {6, 12, 24, 48, 72, 168};
@@ -29,11 +35,13 @@ public final class SellGui extends BaseGui {
     private final PlayerPreferenceManager preferenceManager;
     private final UUID transactionId;
     private final ItemStack displayItem;
-    private final double price;
+    private double price;
     private int selectedDurationIndex = 3;
     private AuctionFilterCategory selectedCategory = AuctionFilterCategory.ALL;
     /** Prevents concurrent click handlers from racing before the atomic claim completes. */
     private final AtomicBoolean settlementStarted = new AtomicBoolean(false);
+    /** Set while re-opening this GUI (duration/category/price refresh) to avoid cancelling the pending sale. */
+    private final AtomicBoolean reopening = new AtomicBoolean(false);
 
     public SellGui(GuiManager guiManager, AuctionService auctionService, PlayerPreferenceManager preferenceManager,
                    PendingSaleTransaction transaction, PlayerPreference preference) {
@@ -42,7 +50,7 @@ public final class SellGui extends BaseGui {
         this.preferenceManager = preferenceManager;
         this.transactionId = transaction.transactionId();
         this.displayItem = transaction.item();
-        this.price = transaction.price();
+        this.price = auctionService.clampListingPrice(transaction.price());
 
         if (preference != null) {
             int storedDuration = preference.lastDurationHours();
@@ -62,7 +70,7 @@ public final class SellGui extends BaseGui {
 
     @Override
     public Inventory render(Player player) {
-        Inventory inventory = attach(Bukkit.createInventory(this, 36, TITLE));
+        Inventory inventory = attach(Bukkit.createInventory(this, 45, TITLE));
 
         inventory.setItem(4, displayItem.clone());
 
@@ -75,11 +83,7 @@ public final class SellGui extends BaseGui {
                     .build());
         }
 
-        AuctionFilterCategory[] categories = {
-                AuctionFilterCategory.ALL, AuctionFilterCategory.BLOCKS, AuctionFilterCategory.TOOLS,
-                AuctionFilterCategory.FOOD, AuctionFilterCategory.COMBAT, AuctionFilterCategory.POTIONS,
-                AuctionFilterCategory.BOOKS, AuctionFilterCategory.INGREDIENTS, AuctionFilterCategory.UTILITIES
-        };
+        AuctionFilterCategory[] categories = categoryOptions();
 
         for (int i = 0; i < categories.length; i++) {
             AuctionFilterCategory cat = categories[i];
@@ -90,12 +94,25 @@ public final class SellGui extends BaseGui {
                     .build());
         }
 
-        inventory.setItem(13, ItemBuilder.of(Material.GOLD_INGOT)
-                .name(Component.text("Price: " + auctionService.formatPrice(price), NamedTextColor.GOLD))
-                .lore(Component.text("Duration: " + DURATION_LABELS[selectedDurationIndex], NamedTextColor.GRAY))
+        inventory.setItem(PRICE_DECREASE_SLOT, ItemBuilder.of(Material.RED_STAINED_GLASS_PANE)
+                .name(Component.text("Decrease Price", NamedTextColor.RED))
+                .lore(Component.text("Step: " + auctionService.formatPrice(priceStep(price)), NamedTextColor.GRAY))
                 .build());
 
-        inventory.setItem(31, ItemBuilder.of(Material.LIME_STAINED_GLASS_PANE)
+        inventory.setItem(PRICE_DISPLAY_SLOT, ItemBuilder.of(Material.GOLD_INGOT)
+                .name(Component.text("Price: " + auctionService.formatPrice(price), NamedTextColor.GOLD))
+                .lore(
+                        Component.text("Duration: " + DURATION_LABELS[selectedDurationIndex], NamedTextColor.GRAY),
+                        Component.text("Click +/- to adjust", NamedTextColor.DARK_GRAY)
+                )
+                .build());
+
+        inventory.setItem(PRICE_INCREASE_SLOT, ItemBuilder.of(Material.LIME_STAINED_GLASS_PANE)
+                .name(Component.text("Increase Price", NamedTextColor.GREEN))
+                .lore(Component.text("Step: " + auctionService.formatPrice(priceStep(price)), NamedTextColor.GRAY))
+                .build());
+
+        inventory.setItem(CONFIRM_SLOT, ItemBuilder.of(Material.LIME_STAINED_GLASS_PANE)
                 .name(Component.text("Confirm Listing", NamedTextColor.GREEN))
                 .lore(
                         Component.text("List this item for " + auctionService.formatPrice(price), NamedTextColor.GRAY),
@@ -103,7 +120,7 @@ public final class SellGui extends BaseGui {
                 )
                 .build());
 
-        inventory.setItem(35, ItemBuilder.of(Material.RED_STAINED_GLASS_PANE)
+        inventory.setItem(CANCEL_SLOT, ItemBuilder.of(Material.RED_STAINED_GLASS_PANE)
                 .name(Component.text("Cancel", NamedTextColor.RED))
                 .lore(Component.text("Go back without listing", NamedTextColor.GRAY))
                 .build());
@@ -123,41 +140,24 @@ public final class SellGui extends BaseGui {
 
         int slot = event.getSlot();
 
-        if (slot >= 18 && slot < 18 + DURATION_OPTIONS.length) {
-            selectedDurationIndex = slot - 18;
-            guiManager.plugin().schedulerAdapter().runEntity(player, () -> guiManager.openSellGui(player, this));
-            return;
-        }
-
-        AuctionFilterCategory[] categories = {
-                AuctionFilterCategory.ALL, AuctionFilterCategory.BLOCKS, AuctionFilterCategory.TOOLS,
-                AuctionFilterCategory.FOOD, AuctionFilterCategory.COMBAT, AuctionFilterCategory.POTIONS,
-                AuctionFilterCategory.BOOKS, AuctionFilterCategory.INGREDIENTS, AuctionFilterCategory.UTILITIES
-        };
-
-        if (slot >= 27 && slot < 27 + categories.length) {
-            selectedCategory = categories[slot - 27];
-            guiManager.plugin().schedulerAdapter().runEntity(player, () -> guiManager.openSellGui(player, this));
-            return;
-        }
-
-        if (slot == 31) {
+        if (slot == CONFIRM_SLOT) {
             if (!settlementStarted.compareAndSet(false, true)) {
                 return;
             }
 
             int durationHours = DURATION_OPTIONS[selectedDurationIndex];
             AuctionFilterCategory category = selectedCategory;
+            double listingPrice = price;
 
             PlayerPreference pref = preferenceManager.getCached(player.getUniqueId());
             if (pref != null) {
                 pref.lastDurationHours(durationHours);
                 pref.lastCategory(category.name());
-                pref.lastPrice(price);
+                pref.lastPrice(listingPrice);
                 preferenceManager.save(pref);
             }
 
-            auctionService.confirmPendingSale(player, transactionId, durationHours, category).thenAccept(result ->
+            auctionService.confirmPendingSale(player, transactionId, durationHours, category, listingPrice).thenAccept(result ->
                     guiManager.plugin().schedulerAdapter().runEntity(player, () -> {
                         guiManager.plugin().messages().send(player, result.message());
                         if (result.success()) {
@@ -170,7 +170,7 @@ public final class SellGui extends BaseGui {
             return;
         }
 
-        if (slot == 35) {
+        if (slot == CANCEL_SLOT) {
             if (!settlementStarted.compareAndSet(false, true)) {
                 return;
             }
@@ -178,21 +178,77 @@ public final class SellGui extends BaseGui {
                 auctionService.cancelPendingSale(player, transactionId);
                 guiManager.openAuctionHouse(player);
             });
+            return;
         }
+
+        if (slot == PRICE_DECREASE_SLOT) {
+            price = auctionService.clampListingPrice(price - priceStep(price));
+            reopen();
+            guiManager.plugin().schedulerAdapter().runEntity(player, () -> guiManager.openSellGui(player, this));
+            return;
+        }
+
+        if (slot == PRICE_INCREASE_SLOT) {
+            price = auctionService.clampListingPrice(price + priceStep(price));
+            reopen();
+            guiManager.plugin().schedulerAdapter().runEntity(player, () -> guiManager.openSellGui(player, this));
+            return;
+        }
+
+        if (slot >= 18 && slot < 18 + DURATION_OPTIONS.length) {
+            selectedDurationIndex = slot - 18;
+            reopen();
+            guiManager.plugin().schedulerAdapter().runEntity(player, () -> guiManager.openSellGui(player, this));
+            return;
+        }
+
+        AuctionFilterCategory[] categories = categoryOptions();
+
+        if (slot >= 27 && slot < 27 + categories.length) {
+            selectedCategory = categories[slot - 27];
+            reopen();
+            guiManager.plugin().schedulerAdapter().runEntity(player, () -> guiManager.openSellGui(player, this));
+        }
+    }
+
+    static double priceStep(double price) {
+        if (price >= 1000.0D) {
+            return 100.0D;
+        }
+        if (price >= 100.0D) {
+            return 10.0D;
+        }
+        if (price >= 10.0D) {
+            return 1.0D;
+        }
+        return 0.1D;
+    }
+
+    private void reopen() {
+        reopening.set(true);
+    }
+
+    public boolean consumeReopening() {
+        return reopening.getAndSet(false);
     }
 
     public UUID getTransactionId() {
         return transactionId;
     }
 
-    /**
-     * @deprecated Use transaction claim APIs; kept for compatibility checks.
-     */
     public boolean isSettlementStarted() {
         return settlementStarted.get();
     }
 
     public ItemStack getDisplayItem() {
         return displayItem.clone();
+    }
+
+    private static AuctionFilterCategory[] categoryOptions() {
+        return new AuctionFilterCategory[]{
+                AuctionFilterCategory.ALL, AuctionFilterCategory.BLOCKS, AuctionFilterCategory.TOOLS,
+                AuctionFilterCategory.FOOD, AuctionFilterCategory.COMBAT, AuctionFilterCategory.POTIONS,
+                AuctionFilterCategory.BOOKS, AuctionFilterCategory.INGREDIENTS, AuctionFilterCategory.UTILITIES
+        };
     }
 }

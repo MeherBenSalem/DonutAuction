@@ -98,6 +98,14 @@ public final class AuctionGui extends BaseGui {
                 .lore(Component.text("View active, sold, and expired listings", NamedTextColor.GRAY))
                 .build());
 
+        inventory.setItem(45, ItemBuilder.of(Material.EMERALD)
+                .name(Component.text("Sell Held Item", NamedTextColor.GREEN))
+                .lore(
+                        Component.text("List the item in your main hand", NamedTextColor.GRAY),
+                        Component.text("Uses your last sell price when available", NamedTextColor.DARK_GRAY)
+                )
+                .build());
+
         inventory.setItem(53, ItemBuilder.of(Material.ARROW)
                 .name(Component.text("Next Page", NamedTextColor.WHITE))
                 .lore(Component.text(page.hasNextPage() ? "Open the next page" : "No more listings", NamedTextColor.GRAY))
@@ -163,6 +171,11 @@ public final class AuctionGui extends BaseGui {
 
         if (slot == 51) {
             guiManager.openPlayerItems(player);
+            return;
+        }
+
+        if (slot == 45) {
+            guiManager.startSellFromHeldItem(player);
             return;
         }
 
