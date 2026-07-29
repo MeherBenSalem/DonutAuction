@@ -6,6 +6,7 @@
 - Price +/- controls in sell GUI; sell-from-GUI emerald button on main auction house
 - Confirm purchase GUI layout refresh with balance display
 - Fixed sell-menu close/reopen duplication and unreachable confirm/cancel
+- **Credit:** @LeoArs06 for the SellGui slot-collision + close-handling fix ([PR #4](https://github.com/MeherBenSalem/DonutAuction/pull/4)) — apologies for shipping 1.3.0 without merging/crediting that PR initially
 
 See `DonutAuctionHouse-1.3.0-PatchNotes.md` for full release notes.
 

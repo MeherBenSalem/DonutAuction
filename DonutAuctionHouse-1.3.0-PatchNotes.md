@@ -15,6 +15,9 @@
 * Fixed item duplication when closing and reopening the sell menu during duration/category/price changes
 * Pending sale is no longer cancelled when the sell GUI refreshes itself
 
+### Credits
+* **@LeoArs06** — SellGui Confirm/Cancel slot-collision fix and sell-menu close/reopen handling ([PR #4](https://github.com/MeherBenSalem/DonutAuction/pull/4)). Sorry this was shipped in 1.3.0 without merging/crediting your PR at the time.
+
 ### Configuration
 * None
 
