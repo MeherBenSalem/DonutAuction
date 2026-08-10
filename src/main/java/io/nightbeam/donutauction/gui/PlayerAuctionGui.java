@@ -6,6 +6,7 @@ import io.nightbeam.donutauction.service.ActionResult;
 import io.nightbeam.donutauction.service.AuctionService;
 import io.nightbeam.donutauction.util.ItemBuilder;
 import io.nightbeam.donutauction.util.ItemLoreApplier;
+import io.nightbeam.donutauction.util.MessageUtil;
 import io.nightbeam.donutauction.util.TimeUtil;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -13,7 +14,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -22,8 +22,6 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 
 public final class PlayerAuctionGui extends BaseGui {
-
-    private static final Component TITLE = Component.text("ᴀᴄᴛɪᴏɴ • ʏᴏᴜʀ ɪᴛᴇᴍꜱ", NamedTextColor.GOLD);
 
     private final GuiManager guiManager;
     private final AuctionService auctionService;
@@ -36,9 +34,14 @@ public final class PlayerAuctionGui extends BaseGui {
         this.page = Math.max(1, page);
     }
 
+    private MessageUtil messages() {
+        return guiManager.plugin().messages();
+    }
+
     @Override
     public Inventory render(Player player) {
-        Inventory inventory = attach(Bukkit.createInventory(this, 54, TITLE));
+        Inventory inventory = attach(Bukkit.createInventory(this, 54,
+                messages().component("gui.titles.your-items", "&6ᴀᴄᴛɪᴏɴ • ʏᴏᴜʀ ɪᴛᴇᴍꜱ")));
         slotMappings.clear();
 
         List<AuctionListing> listings = auctionService.getPlayerAuctions(player.getUniqueId());
@@ -55,17 +58,24 @@ public final class PlayerAuctionGui extends BaseGui {
             slotMappings.put(slot, listing.auctionId());
         }
 
+        String prevLore = page > 1
+                ? messages().raw("gui.common.go-back", "Go back")
+                : messages().raw("gui.common.no-previous-page", "No previous page");
+        String nextLore = page < totalPages
+                ? messages().raw("gui.common.open-next-page", "Open next page")
+                : messages().raw("gui.common.no-more-listings", "No more listings");
+
         inventory.setItem(45, ItemBuilder.of(Material.ARROW)
-                .name(Component.text("Previous Page", NamedTextColor.WHITE))
-                .lore(Component.text(page > 1 ? "Go back" : "No previous page", NamedTextColor.GRAY))
+                .name(messages().component("gui.common.previous-page", "Previous Page"))
+                .lore(messages().component(prevLore))
                 .build());
         inventory.setItem(49, ItemBuilder.of(Material.CHEST)
-                .name(Component.text("Back to Auction", NamedTextColor.WHITE))
-                .lore(Component.text("Return to the auction browser", NamedTextColor.GRAY))
+                .name(messages().component("gui.common.back-to-auction", "Back to Auction"))
+                .lore(messages().component("gui.common.back-to-auction-lore", "Return to the auction browser"))
                 .build());
         inventory.setItem(53, ItemBuilder.of(Material.ARROW)
-                .name(Component.text("Next Page", NamedTextColor.WHITE))
-                .lore(Component.text(page < totalPages ? "Open next page" : "No more listings", NamedTextColor.GRAY))
+                .name(messages().component("gui.common.next-page", "Next Page"))
+                .lore(messages().component(nextLore))
                 .build());
         return inventory;
     }
@@ -112,38 +122,37 @@ public final class PlayerAuctionGui extends BaseGui {
         ItemLoreApplier.LoreMode loreMode = auctionService.getLoreMode();
         boolean showSeparator = auctionService.getLoreSeparator();
 
-        List<Component> auctionLore = new ArrayList<>();
-        auctionLore.add(Component.text("Price: " + auctionService.formatPrice(listing.price()), NamedTextColor.GRAY));
-        auctionLore.add(Component.text("Time remaining: " + TimeUtil.formatDuration(listing.expirationTime() - now), NamedTextColor.GRAY));
-        auctionLore.add(Component.text("Status: " + humanStatus(listing.status()), colorForStatus(listing.status())));
-        auctionLore.add(Component.text(actionLine(listing), NamedTextColor.GREEN));
+        String statusLine = switch (listing.status()) {
+            case ACTIVE -> messages().raw("status.line.active", "&fStatus: Active");
+            case SOLD -> messages().raw("status.line.sold", "&aStatus: Sold");
+            case EXPIRED -> messages().raw("status.line.expired", "&cStatus: Expired");
+            case CANCELLED -> messages().raw("status.line.cancelled", "&cStatus: Cancelled");
+        };
 
-        ItemLoreApplier.applyLore(display, loreMode, showSeparator, auctionLore);
+        List<Component> auctionLore = new ArrayList<>();
+        auctionLore.add(messages().component(
+                "gui.listing-lore.price",
+                "&7Price: %price%",
+                "price", auctionService.formatPrice(listing.price())));
+        auctionLore.add(messages().component(
+                "gui.listing-lore.time-remaining",
+                "&7Time remaining: %time%",
+                "time", TimeUtil.formatDuration(listing.expirationTime() - now)));
+        auctionLore.add(messages().component(statusLine));
+        auctionLore.add(messages().component(actionLine(listing)));
+
+        ItemLoreApplier.applyLore(display, loreMode, showSeparator, auctionLore, messages());
         return display;
     }
 
-    private NamedTextColor colorForStatus(AuctionStatus status) {
-        return switch (status) {
-            case ACTIVE -> NamedTextColor.WHITE;
-            case SOLD -> NamedTextColor.GREEN;
-            case EXPIRED, CANCELLED -> NamedTextColor.RED;
-        };
-    }
-
-    private String humanStatus(AuctionStatus status) {
-        return switch (status) {
-            case ACTIVE -> "Active";
-            case SOLD -> "Sold";
-            case EXPIRED -> "Expired";
-            case CANCELLED -> "Cancelled";
-        };
-    }
-
     private String actionLine(AuctionListing listing) {
+        if (listing.sellerClaimed()) {
+            return messages().raw("gui.listing-lore.action-already-collected", "Already collected.");
+        }
         return switch (listing.status()) {
-            case ACTIVE -> "Click to cancel auction.";
-            case SOLD -> listing.sellerClaimed() ? "Already collected." : "Click to mark proceeds collected.";
-            case EXPIRED, CANCELLED -> listing.sellerClaimed() ? "Already collected." : "Click to reclaim item.";
+            case ACTIVE -> messages().raw("gui.listing-lore.action-cancel", "Click to cancel auction.");
+            case SOLD -> messages().raw("gui.listing-lore.action-collect-proceeds", "Click to mark proceeds collected.");
+            case EXPIRED, CANCELLED -> messages().raw("gui.listing-lore.action-reclaim", "Click to reclaim item.");
         };
     }
 

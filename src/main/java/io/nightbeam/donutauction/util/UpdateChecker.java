@@ -1,6 +1,7 @@
 package io.nightbeam.donutauction.util;
 
 import io.nightbeam.donutauction.AuctionHousePlugin;
+import io.nightbeam.donutauction.util.MessageUtil;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -9,6 +10,7 @@ import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Level;
+import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -114,14 +116,18 @@ public final class UpdateChecker implements Listener {
         String latest = latestVersion.get();
 
         plugin.schedulerAdapter().runEntity(player, () -> {
-            player.sendMessage(net.kyori.adventure.text.Component.empty());
-            player.sendMessage(net.kyori.adventure.text.Component.text(
-                    "A newer version of DonutAuction is available.", net.kyori.adventure.text.format.NamedTextColor.YELLOW));
-            player.sendMessage(net.kyori.adventure.text.Component.text(
-                    "Current: " + currentVersion + "  Latest: " + latest, net.kyori.adventure.text.format.NamedTextColor.GRAY));
-            player.sendMessage(net.kyori.adventure.text.Component.text(
-                    DOWNLOAD_URL, net.kyori.adventure.text.format.NamedTextColor.AQUA));
-            player.sendMessage(net.kyori.adventure.text.Component.empty());
+            MessageUtil messages = plugin.messages();
+            player.sendMessage(Component.empty());
+            player.sendMessage(messages.component(
+                    "update.available",
+                    "&eA newer version of DonutAuction is available."));
+            player.sendMessage(messages.component(
+                    "update.version-line",
+                    "&7Current: %current%  Latest: %latest%",
+                    "current", currentVersion,
+                    "latest", latest));
+            player.sendMessage(Component.text(DOWNLOAD_URL, net.kyori.adventure.text.format.NamedTextColor.AQUA));
+            player.sendMessage(Component.empty());
         });
     }
 

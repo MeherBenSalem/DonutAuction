@@ -6,10 +6,9 @@ import io.nightbeam.donutauction.model.PlayerPreference;
 import io.nightbeam.donutauction.service.AuctionService;
 import io.nightbeam.donutauction.service.PlayerPreferenceManager;
 import io.nightbeam.donutauction.util.ItemBuilder;
+import io.nightbeam.donutauction.util.MessageUtil;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -25,10 +24,7 @@ public final class SellGui extends BaseGui {
     static final int PRICE_DECREASE_SLOT = 12;
     static final int PRICE_INCREASE_SLOT = 14;
 
-    private static final Component TITLE = Component.text("ꜱᴇʟʟ ɪᴛᴇᴍ", NamedTextColor.GOLD);
-
     private static final int[] DURATION_OPTIONS = {6, 12, 24, 48, 72, 168};
-    private static final String[] DURATION_LABELS = {"6 Hours", "12 Hours", "1 Day", "2 Days", "3 Days", "1 Week"};
 
     private final GuiManager guiManager;
     private final AuctionService auctionService;
@@ -68,18 +64,27 @@ public final class SellGui extends BaseGui {
         }
     }
 
+    private MessageUtil messages() {
+        return guiManager.plugin().messages();
+    }
+
     @Override
     public Inventory render(Player player) {
-        Inventory inventory = attach(Bukkit.createInventory(this, 45, TITLE));
+        Inventory inventory = attach(Bukkit.createInventory(this, 45,
+                messages().component("gui.titles.sell", "&6ꜱᴇʟʟ ɪᴛᴇᴍ")));
 
         inventory.setItem(4, displayItem.clone());
 
         for (int i = 0; i < DURATION_OPTIONS.length; i++) {
             boolean selected = i == selectedDurationIndex;
             Material material = selected ? Material.LIME_STAINED_GLASS_PANE : Material.GRAY_STAINED_GLASS_PANE;
+            String durationLabel = messages().durationLabel(DURATION_OPTIONS[i]);
+            String coloredDuration = selected ? "&a" + durationLabel : "&f" + durationLabel;
             inventory.setItem(18 + i, ItemBuilder.of(material)
-                    .name(Component.text(DURATION_LABELS[i], selected ? NamedTextColor.GREEN : NamedTextColor.WHITE))
-                    .lore(selected ? Component.text("Selected", NamedTextColor.GREEN) : Component.text("Click to select", NamedTextColor.GRAY))
+                    .name(messages().component(coloredDuration))
+                    .lore(selected
+                            ? messages().component("&a" + messages().raw("gui.common.selected", "Selected"))
+                            : messages().component("&7" + messages().raw("gui.common.click-to-select", "Click to select")))
                     .build());
         }
 
@@ -89,40 +94,46 @@ public final class SellGui extends BaseGui {
             AuctionFilterCategory cat = categories[i];
             boolean selected = cat == selectedCategory;
             inventory.setItem(27 + i, ItemBuilder.of(selected ? Material.LIME_STAINED_GLASS_PANE : cat.icon())
-                    .name(Component.text(cat.displayName(), selected ? NamedTextColor.GREEN : NamedTextColor.WHITE))
-                    .lore(selected ? Component.text("Selected", NamedTextColor.GREEN) : Component.text("Click to select", NamedTextColor.GRAY))
+                    .name(messages().component(selected ? "&a" + messages().filterCategory(cat) : "&f" + messages().filterCategory(cat)))
+                    .lore(selected
+                            ? messages().component("&a" + messages().raw("gui.common.selected", "Selected"))
+                            : messages().component("&7" + messages().raw("gui.common.click-to-select", "Click to select")))
                     .build());
         }
 
+        String step = auctionService.formatPrice(priceStep(price));
+        String durationLabel = messages().durationLabel(DURATION_OPTIONS[selectedDurationIndex]);
+        String formattedPrice = auctionService.formatPrice(price);
+
         inventory.setItem(PRICE_DECREASE_SLOT, ItemBuilder.of(Material.RED_STAINED_GLASS_PANE)
-                .name(Component.text("Decrease Price", NamedTextColor.RED))
-                .lore(Component.text("Step: " + auctionService.formatPrice(priceStep(price)), NamedTextColor.GRAY))
+                .name(messages().component("gui.sell.decrease-price", "Decrease Price"))
+                .lore(messages().component("gui.common.step", "Step: %step%", "step", step))
                 .build());
 
         inventory.setItem(PRICE_DISPLAY_SLOT, ItemBuilder.of(Material.GOLD_INGOT)
-                .name(Component.text("Price: " + auctionService.formatPrice(price), NamedTextColor.GOLD))
+                .name(messages().component("gui.sell.price-display", "Price: %price%", "price", formattedPrice))
                 .lore(
-                        Component.text("Duration: " + DURATION_LABELS[selectedDurationIndex], NamedTextColor.GRAY),
-                        Component.text("Click +/- to adjust", NamedTextColor.DARK_GRAY)
+                        messages().component("gui.common.duration-label", "Duration: %duration%", "duration", durationLabel),
+                        messages().component("gui.common.click-adjust-price", "Click +/- to adjust")
                 )
                 .build());
 
         inventory.setItem(PRICE_INCREASE_SLOT, ItemBuilder.of(Material.LIME_STAINED_GLASS_PANE)
-                .name(Component.text("Increase Price", NamedTextColor.GREEN))
-                .lore(Component.text("Step: " + auctionService.formatPrice(priceStep(price)), NamedTextColor.GRAY))
+                .name(messages().component("gui.sell.increase-price", "Increase Price"))
+                .lore(messages().component("gui.common.step", "Step: %step%", "step", step))
                 .build());
 
         inventory.setItem(CONFIRM_SLOT, ItemBuilder.of(Material.LIME_STAINED_GLASS_PANE)
-                .name(Component.text("Confirm Listing", NamedTextColor.GREEN))
+                .name(messages().component("gui.sell.confirm-listing", "Confirm Listing"))
                 .lore(
-                        Component.text("List this item for " + auctionService.formatPrice(price), NamedTextColor.GRAY),
-                        Component.text("Duration: " + DURATION_LABELS[selectedDurationIndex], NamedTextColor.GRAY)
+                        messages().component("gui.sell.list-for-price", "List this item for %price%", "price", formattedPrice),
+                        messages().component("gui.common.duration-label", "Duration: %duration%", "duration", durationLabel)
                 )
                 .build());
 
         inventory.setItem(CANCEL_SLOT, ItemBuilder.of(Material.RED_STAINED_GLASS_PANE)
-                .name(Component.text("Cancel", NamedTextColor.RED))
-                .lore(Component.text("Go back without listing", NamedTextColor.GRAY))
+                .name(messages().component("gui.common.cancel", "Cancel"))
+                .lore(messages().component("gui.sell.cancel-lore", "Go back without listing"))
                 .build());
 
         return inventory;

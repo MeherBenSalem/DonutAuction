@@ -6,10 +6,10 @@ import io.nightbeam.donutauction.model.PlayerPreference;
 import io.nightbeam.donutauction.service.AuctionLimitService;
 import io.nightbeam.donutauction.service.AuctionService;
 import io.nightbeam.donutauction.service.PlayerPreferenceManager;
+import io.nightbeam.donutauction.util.MessageUtil;
 import java.util.ArrayList;
 import java.util.List;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -35,13 +35,14 @@ public final class AuctionCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        MessageUtil messages = plugin.messages();
         if (!(sender instanceof Player player)) {
-            sender.sendMessage("Only players can use this command.");
+            sender.sendMessage(messages.component("player-only", "Only players can use this command."));
             return true;
         }
 
         if (!player.hasPermission("donutcore.auction.use") && !player.hasPermission("donutauction.use")) {
-            plugin.messages().send(player, "&cYou do not have permission to use the auction house.");
+            messages.sendRaw(player, "command.no-permission-use", "&cYou do not have permission to use the auction house.");
             return true;
         }
 
@@ -66,19 +67,20 @@ public final class AuctionCommand implements CommandExecutor, TabCompleter {
     }
 
     private void handleSell(Player player, String[] args) {
+        MessageUtil messages = plugin.messages();
         if (!player.hasPermission("donutcore.auction.sell") && !player.hasPermission("donutauction.sell")) {
-            plugin.messages().send(player, "&cYou do not have permission to sell items.");
+            messages.sendRaw(player, "command.no-permission-sell", "&cYou do not have permission to sell items.");
             return;
         }
         if (args.length < 2) {
-            plugin.messages().send(player, "&cUsage: /ah sell <price>");
+            messages.sendRaw(player, "command.usage-sell", "&cUsage: /ah sell <price>");
             return;
         }
         double price;
         try {
             price = Double.parseDouble(args[1]);
         } catch (NumberFormatException exception) {
-            plugin.messages().send(player, "&cInvalid price.");
+            messages.sendRaw(player, "command.invalid-price", "&cInvalid price.");
             return;
         }
 
@@ -86,38 +88,55 @@ public final class AuctionCommand implements CommandExecutor, TabCompleter {
     }
 
     private void handleReload(Player player) {
+        MessageUtil messages = plugin.messages();
         if (!player.hasPermission("donutcore.auction.admin") && !player.hasPermission("donutauction.admin")) {
-            plugin.messages().send(player, "&cYou do not have permission to reload this plugin.");
+            messages.sendRaw(player, "command.no-permission-reload", "&cYou do not have permission to reload this plugin.");
             return;
         }
 
-        plugin.reloadConfig();
-        plugin.applyConfigDefaults();
+        plugin.reloadPluginConfig();
         limitService.reload();
-        plugin.messages().send(player, "&aDonutAuctionHouse configuration reloaded.");
+        messages.sendRaw(player, "command.config-reloaded", "&aDonutAuctionHouse configuration reloaded.");
     }
 
     private void handleLimit(Player player) {
+        MessageUtil messages = plugin.messages();
         if (!limitService.isEnabled()) {
-            plugin.messages().send(player, "&eAuction limits are not enabled.");
+            messages.sendRaw(player, "command.limits-disabled", "&eAuction limits are not enabled.");
             return;
         }
 
         int limit = limitService.getEffectiveLimit(player);
         int currentActive = auctionService.getPlayerActiveAuctionCount(player.getUniqueId());
+        String limitDisplay = limit == -1
+                ? messages.raw("command.unlimited", "Unlimited")
+                : String.valueOf(limit);
 
         player.sendMessage(Component.empty());
-        player.sendMessage(Component.text("Your current auction limit: " + (limit == -1 ? "Unlimited" : limit), NamedTextColor.GOLD));
-        player.sendMessage(Component.text("Current listings: " + currentActive, NamedTextColor.GRAY));
+        player.sendMessage(messages.component(
+                "command.limit-current",
+                "&6Your current auction limit: %limit%",
+                "limit", limitDisplay
+        ));
+        player.sendMessage(messages.component(
+                "command.limit-listings",
+                "&7Current listings: %count%",
+                "count", String.valueOf(currentActive)
+        ));
         if (limit != -1) {
-            player.sendMessage(Component.text("Remaining listings: " + Math.max(0, limit - currentActive), NamedTextColor.GRAY));
+            player.sendMessage(messages.component(
+                    "command.limit-remaining",
+                    "&7Remaining listings: %remaining%",
+                    "remaining", String.valueOf(Math.max(0, limit - currentActive))
+            ));
         }
         player.sendMessage(Component.empty());
     }
 
     private void handleFastBuyToggle(Player player) {
+        MessageUtil messages = plugin.messages();
         if (!player.hasPermission("donutauction.fastbuy")) {
-            plugin.messages().send(player, "&cYou do not have permission to use fast buy.");
+            messages.sendRaw(player, "command.no-permission-fastbuy", "&cYou do not have permission to use fast buy.");
             return;
         }
 
@@ -126,15 +145,18 @@ public final class AuctionCommand implements CommandExecutor, TabCompleter {
             pref.fastBuyEnabled(!pref.fastBuyEnabled());
             preferenceManager.save(pref);
 
-            String state = pref.fastBuyEnabled() ? "&aenabled" : "&cdisabled";
+            String state = pref.fastBuyEnabled()
+                    ? messages.raw("command.state-enabled", "&aenabled")
+                    : messages.raw("command.state-disabled", "&cdisabled");
             plugin.schedulerAdapter().runEntity(player, () ->
-                    plugin.messages().send(player, "&eFast buy " + state + "&e."));
+                    messages.sendFormatted(player, "command.fast-buy-toggle", "&eFast buy %state%&e.", "state", state));
         });
     }
 
     private void handleFastSellToggle(Player player) {
+        MessageUtil messages = plugin.messages();
         if (!player.hasPermission("donutauction.fastsell")) {
-            plugin.messages().send(player, "&cYou do not have permission to use fast sell.");
+            messages.sendRaw(player, "command.no-permission-fastsell", "&cYou do not have permission to use fast sell.");
             return;
         }
 
@@ -143,9 +165,11 @@ public final class AuctionCommand implements CommandExecutor, TabCompleter {
             pref.fastSellEnabled(!pref.fastSellEnabled());
             preferenceManager.save(pref);
 
-            String state = pref.fastSellEnabled() ? "&aenabled" : "&cdisabled";
+            String state = pref.fastSellEnabled()
+                    ? messages.raw("command.state-enabled", "&aenabled")
+                    : messages.raw("command.state-disabled", "&cdisabled");
             plugin.schedulerAdapter().runEntity(player, () ->
-                    plugin.messages().send(player, "&eFast sell " + state + "&e."));
+                    messages.sendFormatted(player, "command.fast-sell-toggle", "&eFast sell %state%&e.", "state", state));
         });
     }
 

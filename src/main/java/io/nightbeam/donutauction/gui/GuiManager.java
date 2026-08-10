@@ -78,20 +78,24 @@ public final class GuiManager {
      */
     public void startSellFromHeldItem(Player player) {
         if (!player.hasPermission("donutcore.auction.sell") && !player.hasPermission("donutauction.sell")) {
-            plugin.messages().send(player, "&cYou do not have permission to sell items.");
+            plugin.messages().sendRaw(player, "command.no-permission-sell", "&cYou do not have permission to sell items.");
             return;
         }
 
         ItemStack itemInHand = player.getInventory().getItemInMainHand();
         if (itemInHand == null || itemInHand.getType() == Material.AIR) {
-            plugin.messages().send(player, "&cHold the item you want to list.");
+            plugin.messages().sendRaw(player, "service.hold-item", "&cHold the item you want to list.");
             return;
         }
 
         int activeCount = auctionService.getPlayerActiveAuctionCount(player.getUniqueId());
         if (!limitService.canCreateListing(player, activeCount)) {
             int limit = limitService.getEffectiveLimit(player);
-            plugin.messages().send(player, "&cYou have reached your auction limit of " + limit + " listings.");
+            plugin.messages().sendFormatted(
+                    player,
+                    "command.auction-limit-reached",
+                    "&cYou have reached your auction limit of %limit% listings.",
+                    "limit", String.valueOf(limit));
             return;
         }
 
@@ -105,20 +109,24 @@ public final class GuiManager {
 
     public void startSellFromHeldItem(Player player, double price) {
         if (!player.hasPermission("donutcore.auction.sell") && !player.hasPermission("donutauction.sell")) {
-            plugin.messages().send(player, "&cYou do not have permission to sell items.");
+            plugin.messages().sendRaw(player, "command.no-permission-sell", "&cYou do not have permission to sell items.");
             return;
         }
 
         ItemStack itemInHand = player.getInventory().getItemInMainHand();
         if (itemInHand == null || itemInHand.getType() == Material.AIR) {
-            plugin.messages().send(player, "&cHold the item you want to list.");
+            plugin.messages().sendRaw(player, "service.hold-item", "&cHold the item you want to list.");
             return;
         }
 
         int activeCount = auctionService.getPlayerActiveAuctionCount(player.getUniqueId());
         if (!limitService.canCreateListing(player, activeCount)) {
             int limit = limitService.getEffectiveLimit(player);
-            plugin.messages().send(player, "&cYou have reached your auction limit of " + limit + " listings.");
+            plugin.messages().sendFormatted(
+                    player,
+                    "command.auction-limit-reached",
+                    "&cYou have reached your auction limit of %limit% listings.",
+                    "limit", String.valueOf(limit));
             return;
         }
 
@@ -170,7 +178,7 @@ public final class GuiManager {
 
     public void beginSearch(Player player) {
         awaitingSearch.add(player.getUniqueId());
-        plugin.messages().send(player, "&eType an item name in chat to search the auction house.");
+        plugin.messages().sendRaw(player, "command.search-prompt", "&eType an item name in chat to search the auction house.");
         player.closeInventory();
     }
 

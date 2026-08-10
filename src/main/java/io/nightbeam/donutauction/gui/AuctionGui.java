@@ -10,6 +10,7 @@ import io.nightbeam.donutauction.service.AuctionService;
 import io.nightbeam.donutauction.service.PlayerPreferenceManager;
 import io.nightbeam.donutauction.util.ItemBuilder;
 import io.nightbeam.donutauction.util.ItemLoreApplier;
+import io.nightbeam.donutauction.util.MessageUtil;
 import io.nightbeam.donutauction.util.ShulkerBoxSupport;
 import io.nightbeam.donutauction.util.TimeUtil;
 import java.util.ArrayList;
@@ -18,7 +19,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
@@ -29,8 +29,6 @@ import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 
 public final class AuctionGui extends BaseGui {
-
-    private static final Component TITLE = Component.text("ᴀᴜᴄᴛɪᴏɴ", NamedTextColor.GOLD);
 
     private final GuiManager guiManager;
     private final AuctionService auctionService;
@@ -48,9 +46,14 @@ public final class AuctionGui extends BaseGui {
         this.session = session;
     }
 
+    private MessageUtil messages() {
+        return guiManager.plugin().messages();
+    }
+
     @Override
     public Inventory render(Player player) {
-        Inventory inventory = attach(Bukkit.createInventory(this, 54, TITLE));
+        Inventory inventory = attach(Bukkit.createInventory(this, 54,
+                messages().component("gui.titles.auction", "&6ᴀᴜᴄᴛɪᴏɴ")));
         slotMappings.clear();
 
         AuctionBrowseRequest request = session.request();
@@ -65,50 +68,64 @@ public final class AuctionGui extends BaseGui {
         }
 
         inventory.setItem(47, ItemBuilder.of(Material.CAULDRON)
-                .name(Component.text("Price Sort", NamedTextColor.WHITE))
+                .name(messages().component("gui.auction.price-sort", "Price Sort"))
                 .lore(
-                        Component.text("Current: " + request.sortMode().displayName(), NamedTextColor.GRAY),
-                        Component.text("Click to cycle sorting", NamedTextColor.DARK_GRAY)
+                        messages().component(
+                                "gui.common.current-value",
+                                "Current: %value%",
+                                "value", messages().sortMode(request.sortMode())),
+                        messages().component("gui.auction.click-cycle-sort", "Click to cycle sorting")
                 )
                 .build());
 
         inventory.setItem(48, ItemBuilder.of(Material.HOPPER)
-                .name(Component.text("Filter", NamedTextColor.WHITE))
+                .name(messages().component("gui.auction.filter", "Filter"))
                 .lore(
-                        Component.text("Current: " + request.filterCategory().displayName(), NamedTextColor.GRAY),
-                        Component.text("Click to change category", NamedTextColor.DARK_GRAY)
+                        messages().component(
+                                "gui.common.current-value",
+                                "Current: %value%",
+                                "value", messages().filterCategory(request.filterCategory())),
+                        messages().component("gui.auction.click-change-category", "Click to change category")
                 )
                 .build());
 
         inventory.setItem(49, ItemBuilder.of(Material.ANVIL)
-                .name(Component.text("Auction", NamedTextColor.WHITE))
-                .lore(Component.text("Refresh the auction house", NamedTextColor.GRAY))
+                .name(messages().component("gui.auction.refresh-name", "Auction"))
+                .lore(messages().component("gui.auction.refresh-lore", "Refresh the auction house"))
                 .build());
 
+        String searchCurrent = request.searchTerm().isBlank()
+                ? messages().raw("gui.common.current-none", "Current: none")
+                : messages().format("gui.common.current-value", "Current: %value%", "value", request.searchTerm());
+
         inventory.setItem(50, ItemBuilder.of(Material.OAK_SIGN)
-                .name(Component.text("Search", NamedTextColor.WHITE))
+                .name(messages().component("gui.auction.search", "Search"))
                 .lore(
-                        Component.text(request.searchTerm().isBlank() ? "Current: none" : "Current: " + request.searchTerm(), NamedTextColor.GRAY),
-                        Component.text("Type an item name in chat", NamedTextColor.DARK_GRAY)
+                        messages().component(searchCurrent),
+                        messages().component("gui.auction.type-item-name", "Type an item name in chat")
                 )
                 .build());
 
         inventory.setItem(51, ItemBuilder.of(Material.CHEST)
-                .name(Component.text("Your Items", NamedTextColor.WHITE))
-                .lore(Component.text("View active, sold, and expired listings", NamedTextColor.GRAY))
+                .name(messages().component("gui.auction.your-items", "Your Items"))
+                .lore(messages().component("gui.auction.your-items-lore", "View active, sold, and expired listings"))
                 .build());
 
         inventory.setItem(45, ItemBuilder.of(Material.EMERALD)
-                .name(Component.text("Sell Held Item", NamedTextColor.GREEN))
+                .name(messages().component("gui.auction.sell-held-item", "Sell Held Item"))
                 .lore(
-                        Component.text("List the item in your main hand", NamedTextColor.GRAY),
-                        Component.text("Uses your last sell price when available", NamedTextColor.DARK_GRAY)
+                        messages().component("gui.auction.sell-held-lore", "List the item in your main hand"),
+                        messages().component("gui.auction.sell-held-hint", "Uses your last sell price when available")
                 )
                 .build());
 
+        String nextPageLore = page.hasNextPage()
+                ? messages().raw("gui.auction.next-page-lore-available", "Open the next page")
+                : messages().raw("gui.common.no-more-listings", "No more listings");
+
         inventory.setItem(53, ItemBuilder.of(Material.ARROW)
-                .name(Component.text("Next Page", NamedTextColor.WHITE))
-                .lore(Component.text(page.hasNextPage() ? "Open the next page" : "No more listings", NamedTextColor.GRAY))
+                .name(messages().component("gui.common.next-page", "Next Page"))
+                .lore(messages().component(nextPageLore))
                 .build());
 
         return inventory;
@@ -192,26 +209,38 @@ public final class AuctionGui extends BaseGui {
         if (seller.isOnline() && seller.getPlayer() != null) {
             sellerName = donutCoreHook.resolveDisplayName(seller.getPlayer());
         } else {
-            sellerName = seller.getName() == null ? "Unknown" : seller.getName();
+            sellerName = seller.getName() == null ? messages().unknownSeller() : seller.getName();
         }
 
         ItemLoreApplier.LoreMode loreMode = auctionService.getLoreMode();
         boolean showSeparator = auctionService.getLoreSeparator();
 
         List<Component> auctionLore = new ArrayList<>();
-        auctionLore.add(Component.text("Price: " + auctionService.formatPrice(listing.price()), NamedTextColor.GRAY));
-        auctionLore.add(Component.text("Seller: " + sellerName, NamedTextColor.GRAY));
-        auctionLore.add(Component.text("Expires in: " + TimeUtil.formatDuration(listing.expirationTime() - now), NamedTextColor.GRAY));
+        auctionLore.add(messages().component(
+                "gui.listing-lore.price",
+                "&7Price: %price%",
+                "price", auctionService.formatPrice(listing.price())));
+        auctionLore.add(messages().component(
+                "gui.listing-lore.seller",
+                "&7Seller: %seller%",
+                "seller", sellerName));
+        auctionLore.add(messages().component(
+                "gui.listing-lore.expires-in",
+                "&7Expires in: %time%",
+                "time", TimeUtil.formatDuration(listing.expirationTime() - now)));
 
         if (ShulkerBoxSupport.isShulkerBox(display)) {
             int itemCount = ShulkerBoxSupport.getItemCount(display);
-            auctionLore.add(Component.text("Contents: " + itemCount + " items", NamedTextColor.AQUA));
-            auctionLore.add(Component.text("Right-click to preview", NamedTextColor.DARK_GRAY));
+            auctionLore.add(messages().component(
+                    "gui.listing-lore.contents",
+                    "&bContents: %count% items",
+                    "count", String.valueOf(itemCount)));
+            auctionLore.add(messages().component("gui.listing-lore.preview-hint", "&8Right-click to preview"));
         }
 
-        auctionLore.add(Component.text("Click to purchase.", NamedTextColor.GREEN));
+        auctionLore.add(messages().component("gui.listing-lore.click-purchase", "&aClick to purchase."));
 
-        ItemLoreApplier.applyLore(display, loreMode, showSeparator, auctionLore);
+        ItemLoreApplier.applyLore(display, loreMode, showSeparator, auctionLore, messages());
         display.editMeta(meta -> meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES));
         return display;
     }

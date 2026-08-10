@@ -19,6 +19,11 @@ public final class ItemLoreApplier {
     }
 
     public static void applyLore(ItemStack item, LoreMode mode, boolean showSeparator, List<Component> auctionLore) {
+        applyLore(item, mode, showSeparator, auctionLore, null);
+    }
+
+    public static void applyLore(ItemStack item, LoreMode mode, boolean showSeparator, List<Component> auctionLore,
+                                 MessageUtil messages) {
         if (mode == LoreMode.DISABLED) {
             return;
         }
@@ -37,7 +42,12 @@ public final class ItemLoreApplier {
             if (existingLore != null && !existingLore.isEmpty()) {
                 combined.addAll(existingLore);
                 if (showSeparator) {
-                    combined.add(Component.text("————————————————", NamedTextColor.DARK_GRAY));
+                    String separator = messages != null
+                            ? messages.raw("gui.listing-lore.separator", "&8————————————————")
+                            : "————————————————";
+                    combined.add(messages != null
+                            ? messages.component(separator)
+                            : Component.text(separator, NamedTextColor.DARK_GRAY));
                 }
             }
 

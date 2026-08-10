@@ -1,0 +1,194 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  DonutAuctionHouse  –  messages.yml
+#
+#  Edit this file to translate the entire plugin into your language.
+#  No recompile needed — run:  /ah reload
+#
+#  Formatting:
+#    &0–&f, &k–&o, &l, &m, &n, &r   standard Minecraft color/format codes
+#
+#  Placeholders:
+#    %name% %price% %seller% …       named placeholders in templates
+#
+#  Inventory titles should stay short (ideally under ~32 characters).
+# ─────────────────────────────────────────────────────────────────────────────
+
+prefix: '&6&lAuctionHouse &8» '
+
+# ── General ───────────────────────────────────────────────────────────────────
+player-only: '&cOnly players can use this command.'
+unknown-seller: Unknown
+
+# ── Commands ──────────────────────────────────────────────────────────────────
+command:
+  no-permission-use: '&cYou do not have permission to use the auction house.'
+  no-permission-sell: '&cYou do not have permission to sell items.'
+  no-permission-reload: '&cYou do not have permission to reload this plugin.'
+  no-permission-fastbuy: '&cYou do not have permission to use fast buy.'
+  no-permission-fastsell: '&cYou do not have permission to use fast sell.'
+  usage-sell: '&cUsage: /ah sell <price>'
+  invalid-price: '&cInvalid price.'
+  config-reloaded: '&aDonutAuctionHouse configuration reloaded.'
+  limits-disabled: '&eAuction limits are not enabled.'
+  limit-current: '&6Your current auction limit: %limit%'
+  limit-listings: '&7Current listings: %count%'
+  limit-remaining: '&7Remaining listings: %remaining%'
+  unlimited: Unlimited
+  fast-buy-toggle: '&eFast buy %state%&e.'
+  fast-sell-toggle: '&eFast sell %state%&e.'
+  state-enabled: '&aenabled'
+  state-disabled: '&cdisabled'
+  search-prompt: '&eType an item name in chat to search the auction house.'
+  auction-limit-reached: '&cYou have reached your auction limit of %limit% listings.'
+
+# ── Service / action results ──────────────────────────────────────────────────
+service:
+  hold-item: '&cHold the item you want to list.'
+  invalid-item: '&cThe item is invalid.'
+  price-below-min: '&cMinimum auction price is &6%min_price%&c.'
+  price-invalid: '&cPrice must be greater than 0 and below the configured limit.'
+  sell-confirmation-invalid: '&cThat sell confirmation is no longer valid.'
+  listed: '&aListed %item% for &6%price%&a.'
+  create-failed: '&cFailed to create the auction. Your item was returned.'
+  auction-unavailable: '&cThat auction is no longer available.'
+  cannot-buy-own: '&cYou cannot buy your own auction.'
+  auction-expired: '&cThat auction has expired.'
+  auction-processing: '&cThat auction is already being processed.'
+  insufficient-funds: '&cYou do not have enough money.'
+  withdraw-failed: '&cUnable to withdraw funds: %error%'
+  pay-seller-failed: '&cUnable to pay the seller right now.'
+  purchased: '&aPurchased %item% for &6%price%&a.'
+  purchase-failed: '&cPurchase failed. Your money has been refunded.'
+  auction-not-found: '&cAuction not found.'
+  only-active-cancel: '&cOnly active auctions can be cancelled.'
+  cancelled: '&aAuction cancelled and item returned.'
+  cancel-failed: '&cFailed to cancel auction. Please try again.'
+  already-collected: '&cThat auction has already been collected.'
+  sale-collected: '&aSale marked as collected. Payment was delivered through Vault at purchase time.'
+  collection-update-failed: '&cUnable to update the collection state.'
+  collection-update-failed-retry: '&cUnable to update the collection state. Please try again.'
+  item-returned: '&aReturned your unsold item.'
+  nothing-to-collect: '&cNothing to collect for that auction.'
+
+# ── Auction status labels ─────────────────────────────────────────────────────
+status:
+  active: Active
+  sold: Sold
+  expired: Expired
+  cancelled: Cancelled
+  line:
+    active: '&fStatus: Active'
+    sold: '&aStatus: Sold'
+    expired: '&cStatus: Expired'
+    cancelled: '&cStatus: Cancelled'
+
+# ── Sort modes ────────────────────────────────────────────────────────────────
+sort:
+  highest-price: Highest Price
+  lowest-price: Lowest Price
+  latest: Latest
+  recently-listed: Recently Listed
+
+# ── Filter categories ─────────────────────────────────────────────────────────
+filter:
+  categories:
+    all: All
+    blocks: Blocks
+    tools: Tools
+    food: Food
+    combat: Combat
+    potions: Potions
+    books: Books
+    ingredients: Ingredients
+    utilities: Utilities
+  filter-lore: Filter auction listings
+  clear-name: Clear Filter
+  clear-lore: Show all listings
+
+# ── Listing durations (sell GUI) ─────────────────────────────────────────────
+duration:
+  6-hours: 6 Hours
+  12-hours: 12 Hours
+  1-day: 1 Day
+  2-days: 2 Days
+  3-days: 3 Days
+  1-week: 1 Week
+
+# ── GUI common ────────────────────────────────────────────────────────────────
+gui:
+  common:
+    cancel: Cancel
+    selected: Selected
+    click-to-select: Click to select
+    back-to-auction: Back to Auction
+    back-to-auction-lore: Return to the auction browser
+    previous-page: Previous Page
+    next-page: Next Page
+    go-back: Go back
+    no-previous-page: No previous page
+    open-next-page: Open next page
+    no-more-listings: No more listings
+    current-none: 'Current: none'
+    current-value: 'Current: %value%'
+    step: 'Step: %step%'
+    duration-label: 'Duration: %duration%'
+    click-adjust-price: Click +/- to adjust
+    preview-prefix: 'Preview: '
+
+  titles:
+    auction: '&6ᴀᴜᴄᴛɪᴏɴ'
+    filter: '&6ᴀᴜᴄᴛɪᴏɴ • ғɪʟᴛᴇʀ'
+    your-items: '&6ᴀᴄᴛɪᴏɴ • ʏᴏᴜʀ ɪᴛᴇᴍꜱ'
+    confirm-purchase: '&6ᴄᴏɴꜰɪʀᴍ ᴘᴜʀᴄʜᴀꜱᴇ'
+    sell: '&6ꜱᴇʟʟ ɪᴛᴇᴍ'
+
+  auction:
+    price-sort: Price Sort
+    click-cycle-sort: Click to cycle sorting
+    filter: Filter
+    click-change-category: Click to change category
+    refresh-name: Auction
+    refresh-lore: Refresh the auction house
+    search: Search
+    type-item-name: Type an item name in chat
+    your-items: Your Items
+    your-items-lore: View active, sold, and expired listings
+    sell-held-item: Sell Held Item
+    sell-held-lore: List the item in your main hand
+    sell-held-hint: Uses your last sell price when available
+    next-page-lore-available: Open the next page
+
+  sell:
+    decrease-price: Decrease Price
+    increase-price: Increase Price
+    price-display: 'Price: %price%'
+    confirm-listing: Confirm Listing
+    list-for-price: List this item for %price%
+    cancel-lore: Go back without listing
+
+  confirm-purchase:
+    confirm: Confirm Purchase
+    click-to-buy: Click to buy this item
+    cancel-lore: Go back to the auction house
+    item-price: '&6Price: %price%'
+
+  listing-lore:
+    separator: '&8————————————————'
+    price: '&7Price: %price%'
+    seller: '&7Seller: %seller%'
+    expires-in: '&7Expires in: %time%'
+    contents: '&bContents: %count% items'
+    preview-hint: '&8Right-click to preview'
+    click-purchase: '&aClick to purchase.'
+    time-remaining: '&7Time remaining: %time%'
+    status: '&7Status: %status%'
+    action-cancel: '&aClick to cancel auction.'
+    action-collect-proceeds: '&aClick to mark proceeds collected.'
+    action-reclaim: '&aClick to reclaim item.'
+    action-already-collected: '&7Already collected.'
+    balance: '&bYour balance: %balance%'
+
+# ── Update checker (player notifications) ─────────────────────────────────────
+update:
+  available: '&eA newer version of DonutAuction is available.'
+  version-line: '&7Current: %current%  Latest: %latest%'

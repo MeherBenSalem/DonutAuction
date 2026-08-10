@@ -20,8 +20,14 @@ import io.nightbeam.donutauction.storage.SqlPlayerPreferenceRepository;
 import io.nightbeam.donutauction.util.MessageUtil;
 import io.nightbeam.donutauction.util.SchedulerAdapter;
 import io.nightbeam.donutauction.util.UpdateChecker;
+import java.io.File;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 import org.bukkit.command.PluginCommand;
+import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public final class AuctionHousePlugin extends JavaPlugin {
@@ -38,10 +44,14 @@ public final class AuctionHousePlugin extends JavaPlugin {
     private GuiManager guiManager;
     private DonutCoreHook donutCoreHook;
     private UpdateChecker updateChecker;
+    private FileConfiguration messagesConfig;
+    private MessageUtil messageUtil;
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
+        saveResourceIfAbsent("messages.yml");
+        reloadMessagesConfig();
         applyConfigDefaults();
 
         this.schedulerAdapter = new SchedulerAdapter(this);
@@ -72,6 +82,7 @@ public final class AuctionHousePlugin extends JavaPlugin {
         this.preferenceManager = new PlayerPreferenceManager(playerPreferenceRepository);
         this.limitService = new AuctionLimitService(this);
 
+        this.messageUtil = new MessageUtil(this);
         this.auctionService = new AuctionService(this, schedulerAdapter, economyProvider, auctionRepository, auctionManager, donutCoreHook);
         this.guiManager = new GuiManager(this, auctionService, auctionManager, preferenceManager, limitService, donutCoreHook);
 
@@ -127,7 +138,40 @@ public final class AuctionHousePlugin extends JavaPlugin {
     }
 
     public MessageUtil messages() {
-        return new MessageUtil(getConfig().getString("messages.prefix", "&6[DonutAuctionHouse]&r "));
+        return messageUtil;
+    }
+
+    public FileConfiguration getMessagesConfig() {
+        return messagesConfig;
+    }
+
+    public void reloadMessagesConfig() {
+        saveResourceIfAbsent("messages.yml");
+        File file = new File(getDataFolder(), "messages.yml");
+        messagesConfig = YamlConfiguration.loadConfiguration(file);
+        InputStream defStream = getResource("messages.yml");
+        if (defStream != null) {
+            YamlConfiguration defConfig = YamlConfiguration.loadConfiguration(
+                    new InputStreamReader(defStream, StandardCharsets.UTF_8));
+            messagesConfig.setDefaults(defConfig);
+            messagesConfig.options().copyDefaults(true);
+        }
+    }
+
+    public void reloadPluginConfig() {
+        reloadConfig();
+        applyConfigDefaults();
+        reloadMessagesConfig();
+        if (messageUtil != null) {
+            messageUtil.reload();
+        }
+    }
+
+    private void saveResourceIfAbsent(String resourcePath) {
+        File file = new File(getDataFolder(), resourcePath);
+        if (!file.exists()) {
+            saveResource(resourcePath, false);
+        }
     }
 
     public void applyConfigDefaults() {

@@ -1,9 +1,9 @@
 package io.nightbeam.donutauction.gui;
 
+import io.nightbeam.donutauction.util.MessageUtil;
 import io.nightbeam.donutauction.util.ShulkerBoxSupport;
 import java.util.List;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -16,25 +16,19 @@ public final class ShulkerPreviewGui extends BaseGui {
 
     private final GuiManager guiManager;
     private final ItemStack shulkerItem;
-    private final Component title;
 
     public ShulkerPreviewGui(GuiManager guiManager, ItemStack shulkerItem) {
         this.guiManager = guiManager;
         this.shulkerItem = shulkerItem.clone();
+    }
 
-        ItemMeta meta = shulkerItem.getItemMeta();
-        if (meta != null && meta.hasDisplayName()) {
-            this.title = Component.text("Preview: ").append(meta.displayName());
-        } else {
-            String name = shulkerItem.getType().name().replace('_', ' ').toLowerCase();
-            name = Character.toUpperCase(name.charAt(0)) + name.substring(1);
-            this.title = Component.text("Preview: " + name, NamedTextColor.GOLD);
-        }
+    private MessageUtil messages() {
+        return guiManager.plugin().messages();
     }
 
     @Override
     public Inventory render(Player player) {
-        Inventory inventory = attach(Bukkit.createInventory(this, 54, title));
+        Inventory inventory = attach(Bukkit.createInventory(this, 54, buildTitle()));
 
         List<ItemStack> contents = ShulkerBoxSupport.getContents(shulkerItem);
         for (int i = 0; i < Math.min(27, contents.size()); i++) {
@@ -42,11 +36,23 @@ public final class ShulkerPreviewGui extends BaseGui {
         }
 
         inventory.setItem(49, io.nightbeam.donutauction.util.ItemBuilder.of(Material.ARROW)
-                .name(Component.text("Back to Auction", NamedTextColor.WHITE))
-                .lore(Component.text("Return to the auction browser", NamedTextColor.GRAY))
+                .name(messages().component("gui.common.back-to-auction", "Back to Auction"))
+                .lore(messages().component("gui.common.back-to-auction-lore", "Return to the auction browser"))
                 .build());
 
         return inventory;
+    }
+
+    private Component buildTitle() {
+        MessageUtil messages = messages();
+        ItemMeta meta = shulkerItem.getItemMeta();
+        if (meta != null && meta.hasDisplayName()) {
+            return messages.component(messages.raw("gui.common.preview-prefix", "Preview: "))
+                    .append(meta.displayName());
+        }
+        String name = shulkerItem.getType().name().replace('_', ' ').toLowerCase();
+        name = Character.toUpperCase(name.charAt(0)) + name.substring(1);
+        return messages.component(messages.raw("gui.common.preview-prefix", "Preview: ") + name);
     }
 
     @Override
