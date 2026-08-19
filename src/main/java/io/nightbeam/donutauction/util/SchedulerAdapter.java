@@ -1,6 +1,5 @@
 package io.nightbeam.donutauction.util;
 
-import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -9,15 +8,19 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Entity;
 import org.bukkit.plugin.Plugin;
+import org.bukkit.scheduler.BukkitTask;
 
 public final class SchedulerAdapter {
 
     private final Plugin plugin;
     private final ExecutorService asyncExecutor;
+    private final boolean regionScheduler;
 
     public SchedulerAdapter(Plugin plugin) {
         this.plugin = plugin;
-        this.asyncExecutor = Executors.newFixedThreadPool(Math.max(4, Runtime.getRuntime().availableProcessors() / 2), new NamedThreadFactory());
+        this.asyncExecutor = Executors.newFixedThreadPool(
+                Math.max(4, Runtime.getRuntime().availableProcessors() / 2), new NamedThreadFactory());
+        this.regionScheduler = hasGlobalRegionScheduler();
     }
 
     public Executor asyncExecutor() {
@@ -29,19 +32,49 @@ public final class SchedulerAdapter {
     }
 
     public void runGlobal(Runnable runnable) {
-        Bukkit.getGlobalRegionScheduler().execute(plugin, runnable);
+        if (regionScheduler) {
+            Bukkit.getGlobalRegionScheduler().execute(plugin, runnable);
+            return;
+        }
+        Bukkit.getScheduler().runTask(plugin, runnable);
     }
 
     public void runEntity(Entity entity, Runnable runnable) {
-        entity.getScheduler().execute(plugin, runnable, null, 1L);
+        if (regionScheduler) {
+            entity.getScheduler().execute(plugin, runnable, null, 1L);
+            return;
+        }
+        Bukkit.getScheduler().runTask(plugin, runnable);
     }
 
-    public ScheduledTask runGlobalRepeating(Runnable runnable, long initialDelayTicks, long periodTicks) {
-        return Bukkit.getGlobalRegionScheduler().runAtFixedRate(plugin, task -> runnable.run(), initialDelayTicks, periodTicks);
+    public CancellableTask runGlobalRepeating(Runnable runnable, long initialDelayTicks, long periodTicks) {
+        if (regionScheduler) {
+            io.papermc.paper.threadedregions.scheduler.ScheduledTask paperTask =
+                    Bukkit.getGlobalRegionScheduler()
+                            .runAtFixedRate(plugin, task -> runnable.run(), initialDelayTicks, periodTicks);
+            return paperTask::cancel;
+        }
+        BukkitTask bukkitTask = Bukkit.getScheduler()
+                .runTaskTimer(plugin, runnable, initialDelayTicks, periodTicks);
+        return bukkitTask::cancel;
     }
 
     public void shutdown() {
         asyncExecutor.shutdownNow();
+    }
+
+    private static boolean hasGlobalRegionScheduler() {
+        try {
+            Bukkit.class.getMethod("getGlobalRegionScheduler");
+            return true;
+        } catch (NoSuchMethodException exception) {
+            return false;
+        }
+    }
+
+    @FunctionalInterface
+    public interface CancellableTask {
+        void cancel();
     }
 
     private static final class NamedThreadFactory implements ThreadFactory {

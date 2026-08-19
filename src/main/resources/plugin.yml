@@ -4,7 +4,8 @@ main: io.nightbeam.donutauction.AuctionHousePlugin
 api-version: '1.20'
 folia-supported: true
 authors:
-  - GitHub Copilot
+  - NightBeam Studio
+website: https://github.com/MeherBenSalem/DonutAuction
 description: Standalone auction house plugin with Vault/VaultUnlocked economy and optional DonutCore integration.
 softdepend:
   - Vault
@@ -15,11 +16,9 @@ commands:
     description: Opens the auction house.
     usage: /ah [sell <price>|cancel|reload|limit|fastbuy|fastsell]
     aliases: [auctionhouse]
-    permission: donutcore.auction.use
   auction:
     description: Opens the auction house.
     usage: /auction
-    permission: donutcore.auction.use
 permissions:
   donutcore.auction.use:
     description: Access to the auction house.

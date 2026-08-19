@@ -191,4 +191,5 @@ gui:
 # ── Update checker (player notifications) ─────────────────────────────────────
 update:
   available: '&eA newer version of DonutAuction is available.'
+  up-to-date: '&aDonutAuctionHouse is up to date.'
   version-line: '&7Current: %current%  Latest: %latest%'

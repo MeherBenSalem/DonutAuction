@@ -1,10 +1,10 @@
 package io.nightbeam.donutauction.listener;
 
 import io.nightbeam.donutauction.gui.GuiManager;
-import io.papermc.paper.event.player.AsyncChatEvent;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.player.AsyncPlayerChatEvent;
 
 public final class AuctionChatListener implements Listener {
 
@@ -15,14 +15,14 @@ public final class AuctionChatListener implements Listener {
     }
 
     @EventHandler
-    public void onAsyncChat(AsyncChatEvent event) {
+    public void onAsyncChat(AsyncPlayerChatEvent event) {
         Player player = event.getPlayer();
         if (!guiManager.isAwaitingSearch(player.getUniqueId())) {
             return;
         }
 
         event.setCancelled(true);
-        String query = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(event.message());
+        String query = event.getMessage();
         guiManager.plugin().schedulerAdapter().runEntity(player, () -> guiManager.handleSearchInput(player, query));
     }
 }

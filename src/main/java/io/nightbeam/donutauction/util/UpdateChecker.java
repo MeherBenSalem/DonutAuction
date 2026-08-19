@@ -1,7 +1,6 @@
 package io.nightbeam.donutauction.util;
 
 import io.nightbeam.donutauction.AuctionHousePlugin;
-import io.nightbeam.donutauction.util.MessageUtil;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -11,6 +10,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Level;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -57,7 +57,7 @@ public final class UpdateChecker implements Listener {
                 HttpRequest request = HttpRequest.newBuilder()
                         .uri(URI.create(API_URL))
                         .header("Accept", "application/json")
-                        .header("User-Agent", "DonutAuction/" + currentVersion)
+                        .header("User-Agent", "DonutAuctionHouse/" + currentVersion)
                         .timeout(Duration.ofSeconds(15))
                         .GET()
                         .build();
@@ -69,29 +69,17 @@ public final class UpdateChecker implements Listener {
                     return;
                 }
 
-                String body = response.body();
-                String parsedVersion = parseLatestVersion(body);
+                String parsedVersion = parseLatestReleaseVersion(response.body());
                 if (parsedVersion == null) {
-                    plugin.getLogger().warning("Update check failed: could not parse version from response.");
+                    plugin.getLogger().warning("Update check failed: could not parse a release version from Modrinth.");
                     return;
                 }
 
                 latestVersion.set(parsedVersion);
-
-                if (isNewer(parsedVersion, currentVersion)) {
-                    updateAvailable = true;
-                    if (plugin.getConfig().getBoolean("update-checker.notify-console", true)) {
-                        plugin.getLogger().info("");
-                        plugin.getLogger().info("A new version is available!");
-                        plugin.getLogger().info("");
-                        plugin.getLogger().info("Current Version: " + currentVersion);
-                        plugin.getLogger().info("Latest Version: " + parsedVersion);
-                        plugin.getLogger().info("");
-                        plugin.getLogger().info("Download:");
-                        plugin.getLogger().info(DOWNLOAD_URL);
-                        plugin.getLogger().info("");
-                    }
-                }
+                updateAvailable = isNewer(parsedVersion, currentVersion);
+                logConsoleStatus(currentVersion, parsedVersion, updateAvailable);
+                plugin.schedulerAdapter().runGlobal(
+                        () -> notifyOnlineAdmins(currentVersion, parsedVersion, updateAvailable));
             } catch (Exception exception) {
                 plugin.getLogger().log(Level.FINE, "Update check failed (non-critical): " + exception.getMessage());
             }
@@ -114,38 +102,107 @@ public final class UpdateChecker implements Listener {
 
         String currentVersion = plugin.getDescription().getVersion();
         String latest = latestVersion.get();
+        plugin.schedulerAdapter().runEntity(player, () -> sendAdminStatus(player, currentVersion, latest, true));
+    }
 
-        plugin.schedulerAdapter().runEntity(player, () -> {
-            MessageUtil messages = plugin.messages();
-            player.sendMessage(Component.empty());
+    private void logConsoleStatus(String currentVersion, String latest, boolean needsUpdate) {
+        if (!plugin.getConfig().getBoolean("update-checker.notify-console", true)) {
+            return;
+        }
+        plugin.getLogger().info("");
+        if (needsUpdate) {
+            plugin.getLogger().info("A new version is available!");
+            plugin.getLogger().info("Current Version: " + currentVersion);
+            plugin.getLogger().info("Latest Version: " + latest);
+            plugin.getLogger().info("Download: " + DOWNLOAD_URL);
+        } else {
+            plugin.getLogger().info("DonutAuctionHouse is up to date (" + currentVersion + ").");
+        }
+        plugin.getLogger().info("");
+    }
+
+    private void notifyOnlineAdmins(String currentVersion, String latest, boolean needsUpdate) {
+        if (!plugin.getConfig().getBoolean("update-checker.notify-admins", true)) {
+            return;
+        }
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            if (!player.hasPermission("donutauction.update.notify")) {
+                continue;
+            }
+            plugin.schedulerAdapter().runEntity(
+                    player, () -> sendAdminStatus(player, currentVersion, latest, needsUpdate));
+        }
+    }
+
+    private void sendAdminStatus(Player player, String currentVersion, String latest, boolean needsUpdate) {
+        MessageUtil messages = plugin.messages();
+        player.sendMessage(Component.empty());
+        if (needsUpdate) {
             player.sendMessage(messages.component(
                     "update.available",
                     "&eA newer version of DonutAuction is available."));
+        } else {
             player.sendMessage(messages.component(
-                    "update.version-line",
-                    "&7Current: %current%  Latest: %latest%",
-                    "current", currentVersion,
-                    "latest", latest));
-            player.sendMessage(Component.text(DOWNLOAD_URL, net.kyori.adventure.text.format.NamedTextColor.AQUA));
-            player.sendMessage(Component.empty());
-        });
+                    "update.up-to-date",
+                    "&aDonutAuctionHouse is up to date."));
+        }
+        player.sendMessage(messages.component(
+                "update.version-line",
+                "&7Current: %current%  Latest: %latest%",
+                "current", currentVersion,
+                "latest", latest == null ? currentVersion : latest));
+        if (needsUpdate) {
+            player.sendMessage(Component.text(DOWNLOAD_URL, NamedTextColor.AQUA));
+        }
+        player.sendMessage(Component.empty());
     }
 
-    private String parseLatestVersion(String jsonBody) {
-        try {
-            int firstVersionIndex = jsonBody.indexOf("\"version_number\":\"");
-            if (firstVersionIndex == -1) {
-                return null;
-            }
-            int start = firstVersionIndex + "\"version_number\":\"".length();
-            int end = jsonBody.indexOf("\"", start);
-            if (end == -1) {
-                return null;
-            }
-            return jsonBody.substring(start, end);
-        } catch (Exception exception) {
+    static String parseLatestReleaseVersion(String jsonBody) {
+        if (jsonBody == null || jsonBody.isEmpty()) {
             return null;
         }
+        String bestRelease = null;
+        int searchFrom = 0;
+        while (true) {
+            int versionKey = jsonBody.indexOf("\"version_number\"", searchFrom);
+            if (versionKey < 0) {
+                break;
+            }
+            String version = readJsonStringValue(jsonBody, versionKey);
+            int nextVersionKey = jsonBody.indexOf("\"version_number\"", versionKey + 16);
+            int typeKey = jsonBody.indexOf("\"version_type\"", versionKey);
+            searchFrom = versionKey + 16;
+            if (version == null) {
+                continue;
+            }
+            if (typeKey < 0 || (nextVersionKey >= 0 && typeKey > nextVersionKey)) {
+                continue;
+            }
+            String type = readJsonStringValue(jsonBody, typeKey);
+            if (type == null || !"release".equalsIgnoreCase(type)) {
+                continue;
+            }
+            if (bestRelease == null || isNewer(version, bestRelease)) {
+                bestRelease = version;
+            }
+        }
+        return bestRelease;
+    }
+
+    private static String readJsonStringValue(String json, int keyIndex) {
+        int colon = json.indexOf(':', keyIndex);
+        if (colon < 0) {
+            return null;
+        }
+        int quote = json.indexOf('"', colon + 1);
+        if (quote < 0) {
+            return null;
+        }
+        int end = json.indexOf('"', quote + 1);
+        if (end < 0) {
+            return null;
+        }
+        return json.substring(quote + 1, end);
     }
 
     static boolean isNewer(String latest, String current) {
@@ -156,8 +213,12 @@ public final class UpdateChecker implements Listener {
             for (int i = 0; i < Math.max(latestParts.length, currentParts.length); i++) {
                 int l = i < latestParts.length ? latestParts[i] : 0;
                 int c = i < currentParts.length ? currentParts[i] : 0;
-                if (l > c) return true;
-                if (l < c) return false;
+                if (l > c) {
+                    return true;
+                }
+                if (l < c) {
+                    return false;
+                }
             }
             return false;
         } catch (Exception exception) {

@@ -25,6 +25,9 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
+import org.bstats.bukkit.Metrics;
+import org.bstats.charts.SimplePie;
+import org.bukkit.Bukkit;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -94,6 +97,7 @@ public final class AuctionHousePlugin extends JavaPlugin {
 
         registerCommands();
         registerListeners();
+        startMetrics();
 
         getLogger().info("DonutAuctionHouse enabled using " + databaseManager.getDatabaseType().name() + " storage.");
     }
@@ -131,6 +135,18 @@ public final class AuctionHousePlugin extends JavaPlugin {
 
         pluginCommand.setExecutor(command);
         pluginCommand.setTabCompleter(command);
+    }
+
+    private void startMetrics() {
+        if (!getConfig().getBoolean("metrics.enabled", true)) {
+            return;
+        }
+        try {
+            Metrics metrics = new Metrics(this, 33523);
+            metrics.addCustomChart(new SimplePie("server_software", () -> Bukkit.getServer().getName()));
+        } catch (Throwable throwable) {
+            getLogger().warning("bStats metrics failed to load (plugin will continue): " + throwable.getMessage());
+        }
     }
 
     public SchedulerAdapter schedulerAdapter() {
@@ -203,6 +219,7 @@ public final class AuctionHousePlugin extends JavaPlugin {
         getConfig().addDefault("update-checker.notify-console", true);
         getConfig().addDefault("update-checker.notify-admins", true);
         getConfig().addDefault("update-checker.check-interval-hours", 12);
+        getConfig().addDefault("metrics.enabled", true);
         getConfig().addDefault("debug.pending-sales", false);
         getConfig().options().copyDefaults(true);
         saveConfig();

@@ -57,6 +57,9 @@ shulker-support:
   enabled: true
   preview-contents: true
 
+metrics:
+  enabled: true
+
 update-checker:
   enabled: true
   notify-console: true

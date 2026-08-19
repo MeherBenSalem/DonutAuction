@@ -13,7 +13,6 @@ import io.nightbeam.donutauction.model.PendingSaleTransaction;
 import io.nightbeam.donutauction.storage.AuctionRepository;
 import io.nightbeam.donutauction.util.ItemLoreApplier;
 import io.nightbeam.donutauction.util.SchedulerAdapter;
-import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -42,7 +41,7 @@ public final class AuctionService {
     private final PendingSaleRegistry pendingSaleRegistry;
     private final Map<UUID, AtomicBoolean> operationLocks = new ConcurrentHashMap<>();
 
-    private ScheduledTask expiryTask;
+    private SchedulerAdapter.CancellableTask expiryTask;
 
     public AuctionService(
             AuctionHousePlugin plugin,
