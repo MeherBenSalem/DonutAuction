@@ -40,8 +40,12 @@ public final class SchedulerAdapter {
     }
 
     public void runEntity(Entity entity, Runnable runnable) {
+        runEntity(entity, runnable, null);
+    }
+
+    public void runEntity(Entity entity, Runnable runnable, Runnable retired) {
         if (regionScheduler) {
-            entity.getScheduler().execute(plugin, runnable, null, 1L);
+            entity.getScheduler().execute(plugin, runnable, retired, 1L);
             return;
         }
         Bukkit.getScheduler().runTask(plugin, runnable);

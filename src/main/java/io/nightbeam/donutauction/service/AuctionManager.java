@@ -45,6 +45,18 @@ public final class AuctionManager {
         invalidatePages();
     }
 
+    /**
+     * Applies a remote MySQL/Redis snapshot. Ignores stale payloads whose {@code updatedAt}
+     * is older than the listing already in this node's cache.
+     */
+    public void mergeRemote(AuctionListing listing) {
+        AuctionListing existing = listingCache.get(listing.auctionId());
+        if (existing != null && existing.updatedAt() > listing.updatedAt()) {
+            return;
+        }
+        upsert(listing);
+    }
+
     public void remove(UUID auctionId) {
         listingCache.remove(auctionId);
         plainNameCache.remove(auctionId);
@@ -106,8 +118,12 @@ public final class AuctionManager {
     }
 
     private String computePlainName(AuctionListing listing) {
-        if (listing.item().hasItemMeta() && listing.item().getItemMeta().hasDisplayName()) {
-            return PLAIN_TEXT.serialize(listing.item().getItemMeta().displayName());
+        try {
+            if (listing.item().hasItemMeta() && listing.item().getItemMeta().hasDisplayName()) {
+                return PLAIN_TEXT.serialize(listing.item().getItemMeta().displayName());
+            }
+        } catch (Exception ignored) {
+            // Tests and early boot have no Bukkit server; fall back to material name.
         }
         return listing.item().getType().name().replace('_', ' ');
     }

@@ -5,7 +5,7 @@
 
     <groupId>io.nightbeam</groupId>
     <artifactId>donutauction</artifactId>
-    <version>1.4.0</version>
+    <version>1.5.0</version>
     <packaging>jar</packaging>
 
     <name>DonutAuctionHouse</name>
@@ -42,6 +42,7 @@
         <sqlite.version>3.45.2.0</sqlite.version>
         <mysql.version>8.3.0</mysql.version>
         <bstats.version>3.1.0</bstats.version>
+        <jedis.version>5.1.5</jedis.version>
     </properties>
 
     <repositories>
@@ -95,6 +96,11 @@
             <artifactId>bstats-bukkit</artifactId>
             <version>${bstats.version}</version>
             <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>redis.clients</groupId>
+            <artifactId>jedis</artifactId>
+            <version>${jedis.version}</version>
         </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
@@ -190,6 +196,18 @@
                                 <relocation>
                                     <pattern>org.bstats</pattern>
                                     <shadedPattern>io.nightbeam.donutauction.lib.bstats</shadedPattern>
+                                </relocation>
+                                <relocation>
+                                    <pattern>redis.clients</pattern>
+                                    <shadedPattern>io.nightbeam.donutauction.lib.jedis</shadedPattern>
+                                </relocation>
+                                <relocation>
+                                    <pattern>org.apache.commons.pool2</pattern>
+                                    <shadedPattern>io.nightbeam.donutauction.lib.pool2</shadedPattern>
+                                </relocation>
+                                <relocation>
+                                    <pattern>org.json</pattern>
+                                    <shadedPattern>io.nightbeam.donutauction.lib.json</shadedPattern>
                                 </relocation>
                             </relocations>
                         </configuration>

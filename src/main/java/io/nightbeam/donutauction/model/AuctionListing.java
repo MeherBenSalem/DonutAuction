@@ -14,7 +14,8 @@ public record AuctionListing(
         AuctionStatus status,
         UUID buyer,
         long soldTime,
-        boolean sellerClaimed
+        boolean sellerClaimed,
+        long updatedAt
 ) {
 
     public AuctionListing {
@@ -34,18 +35,27 @@ public record AuctionListing(
     }
 
     public AuctionListing withStatus(AuctionStatus newStatus) {
-        return new AuctionListing(auctionId, item, seller, price, listingTime, expirationTime, newStatus, buyer, soldTime, sellerClaimed);
+        return new AuctionListing(
+                auctionId, item, seller, price, listingTime, expirationTime, newStatus, buyer, soldTime, sellerClaimed, updatedAt);
+    }
+
+    public AuctionListing withUpdatedAt(long newUpdatedAt) {
+        return new AuctionListing(
+                auctionId, item, seller, price, listingTime, expirationTime, status, buyer, soldTime, sellerClaimed, newUpdatedAt);
     }
 
     public AuctionListing asSold(UUID buyerId, long purchaseTime) {
-        return new AuctionListing(auctionId, item, seller, price, listingTime, expirationTime, AuctionStatus.SOLD, buyerId, purchaseTime, false);
+        return new AuctionListing(
+                auctionId, item, seller, price, listingTime, expirationTime, AuctionStatus.SOLD, buyerId, purchaseTime, false, purchaseTime);
     }
 
-    public AuctionListing asExpired() {
-        return new AuctionListing(auctionId, item, seller, price, listingTime, expirationTime, AuctionStatus.EXPIRED, buyer, soldTime, sellerClaimed);
+    public AuctionListing asExpired(long now) {
+        return new AuctionListing(
+                auctionId, item, seller, price, listingTime, expirationTime, AuctionStatus.EXPIRED, buyer, soldTime, sellerClaimed, now);
     }
 
-    public AuctionListing markSellerClaimed() {
-        return new AuctionListing(auctionId, item, seller, price, listingTime, expirationTime, status, buyer, soldTime, true);
+    public AuctionListing markSellerClaimed(long now) {
+        return new AuctionListing(
+                auctionId, item, seller, price, listingTime, expirationTime, status, buyer, soldTime, true, now);
     }
 }

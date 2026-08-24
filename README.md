@@ -10,7 +10,7 @@ List items, browse the market, buy and sell with a Vault-compatible economy. Opt
 - Sell GUI with price steps and shulker-box preview
 - Fast buy / fast sell preferences
 - Permission-based listing limits and slot expansions
-- SQLite or MySQL storage
+- SQLite or MySQL storage (MySQL is safe for multi-server; optional Redis to refresh other nodes immediately)
 - Folia-safe region scheduling (Bukkit scheduler fallback when needed)
 - Vault and VaultUnlocked economy detection
 - bStats (plugin ID 33523)

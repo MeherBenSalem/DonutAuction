@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.5.0
+
+- Shared MySQL listings are claimed with `UPDATE ... WHERE status = ACTIVE` before Vault is charged, so two Folia nodes cannot sell the same auction twice
+- Optional Redis pub/sub (`sync.redis`) notifies other nodes immediately; MySQL poll (`sync.poll-interval-seconds`) is the fallback
+- Cancel and expire also use conditional row claims
+- Purchase settlement runs on the buyer entity thread (Folia-safe)
+
 ## 1.4.0
 
 - bStats metrics (plugin ID 33523), disable with `metrics.enabled: false`

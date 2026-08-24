@@ -66,6 +66,17 @@ update-checker:
   notify-admins: true
   check-interval-hours: 12
 
+# Cross-server: MySQL claim is the source of truth. Redis is optional notification.
+# Poll runs only when storage.type is MYSQL.
+sync:
+  poll-interval-seconds: 3
+  redis:
+    enabled: false
+    host: localhost
+    port: 6379
+    password: ""
+    channel: donutauction:listings
+
 messages:
   prefix: '&6&lAuctionHouse &8» '
   price-below-min: '&cMinimum auction price is &6%min_price%&c.'

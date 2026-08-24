@@ -17,6 +17,8 @@ import io.nightbeam.donutauction.storage.DatabaseManager;
 import io.nightbeam.donutauction.storage.PlayerPreferenceRepository;
 import io.nightbeam.donutauction.storage.SqlAuctionRepository;
 import io.nightbeam.donutauction.storage.SqlPlayerPreferenceRepository;
+import io.nightbeam.donutauction.sync.ListingSyncBus;
+import io.nightbeam.donutauction.sync.ListingSyncBusFactory;
 import io.nightbeam.donutauction.util.MessageUtil;
 import io.nightbeam.donutauction.util.SchedulerAdapter;
 import io.nightbeam.donutauction.util.UpdateChecker;
@@ -46,6 +48,7 @@ public final class AuctionHousePlugin extends JavaPlugin {
     private AuctionLimitService limitService;
     private GuiManager guiManager;
     private DonutCoreHook donutCoreHook;
+    private ListingSyncBus listingSyncBus;
     private UpdateChecker updateChecker;
     private FileConfiguration messagesConfig;
     private MessageUtil messageUtil;
@@ -86,7 +89,11 @@ public final class AuctionHousePlugin extends JavaPlugin {
         this.limitService = new AuctionLimitService(this);
 
         this.messageUtil = new MessageUtil(this);
-        this.auctionService = new AuctionService(this, schedulerAdapter, economyProvider, auctionRepository, auctionManager, donutCoreHook);
+        ListingSyncBus listingSyncBus = ListingSyncBusFactory.create(this, auctionRepository, auctionManager);
+        this.listingSyncBus = listingSyncBus;
+        this.auctionService = new AuctionService(
+                this, schedulerAdapter, economyProvider, auctionRepository, auctionManager, donutCoreHook,
+                listingSyncBus, databaseManager.getDatabaseType());
         this.guiManager = new GuiManager(this, auctionService, auctionManager, preferenceManager, limitService, donutCoreHook);
 
         this.auctionService.initialize();
@@ -109,6 +116,9 @@ public final class AuctionHousePlugin extends JavaPlugin {
         }
         if (auctionService != null) {
             auctionService.shutdown();
+        }
+        if (listingSyncBus != null) {
+            listingSyncBus.shutdown();
         }
         if (databaseManager != null) {
             databaseManager.shutdown();
@@ -221,6 +231,12 @@ public final class AuctionHousePlugin extends JavaPlugin {
         getConfig().addDefault("update-checker.check-interval-hours", 12);
         getConfig().addDefault("metrics.enabled", true);
         getConfig().addDefault("debug.pending-sales", false);
+        getConfig().addDefault("sync.poll-interval-seconds", 3);
+        getConfig().addDefault("sync.redis.enabled", false);
+        getConfig().addDefault("sync.redis.host", "localhost");
+        getConfig().addDefault("sync.redis.port", 6379);
+        getConfig().addDefault("sync.redis.password", "");
+        getConfig().addDefault("sync.redis.channel", "donutauction:listings");
         getConfig().options().copyDefaults(true);
         saveConfig();
     }

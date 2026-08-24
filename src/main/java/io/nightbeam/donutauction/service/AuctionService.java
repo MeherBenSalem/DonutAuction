@@ -11,6 +11,9 @@ import io.nightbeam.donutauction.model.AuctionStatus;
 import io.nightbeam.donutauction.model.ListingPriceValidationResult;
 import io.nightbeam.donutauction.model.PendingSaleTransaction;
 import io.nightbeam.donutauction.storage.AuctionRepository;
+import io.nightbeam.donutauction.storage.DatabaseType;
+import io.nightbeam.donutauction.sync.ListingSyncAction;
+import io.nightbeam.donutauction.sync.ListingSyncBus;
 import io.nightbeam.donutauction.util.ItemLoreApplier;
 import io.nightbeam.donutauction.util.SchedulerAdapter;
 import java.util.List;
@@ -20,6 +23,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.milkbowl.vault.economy.EconomyResponse;
@@ -38,10 +42,14 @@ public final class AuctionService {
     private final AuctionRepository repository;
     private final AuctionManager auctionManager;
     private final DonutCoreHook donutCoreHook;
+    private final ListingSyncBus listingSyncBus;
+    private final DatabaseType databaseType;
     private final PendingSaleRegistry pendingSaleRegistry;
     private final Map<UUID, AtomicBoolean> operationLocks = new ConcurrentHashMap<>();
+    private final AtomicLong lastSyncedAt = new AtomicLong();
 
     private SchedulerAdapter.CancellableTask expiryTask;
+    private SchedulerAdapter.CancellableTask pollTask;
 
     public AuctionService(
             AuctionHousePlugin plugin,
@@ -49,7 +57,9 @@ public final class AuctionService {
             VaultEconomyProvider economyProvider,
             AuctionRepository repository,
             AuctionManager auctionManager,
-            DonutCoreHook donutCoreHook
+            DonutCoreHook donutCoreHook,
+            ListingSyncBus listingSyncBus,
+            DatabaseType databaseType
     ) {
         this.plugin = plugin;
         this.schedulerAdapter = schedulerAdapter;
@@ -57,6 +67,8 @@ public final class AuctionService {
         this.repository = repository;
         this.auctionManager = auctionManager;
         this.donutCoreHook = donutCoreHook;
+        this.listingSyncBus = listingSyncBus;
+        this.databaseType = databaseType;
         boolean debugPending = plugin.getConfig().getBoolean("debug.pending-sales", false);
         this.pendingSaleRegistry = new PendingSaleRegistry(plugin.getLogger(), debugPending);
     }
@@ -64,7 +76,14 @@ public final class AuctionService {
     public void initialize() {
         repository.initialize()
                 .thenCompose(ignored -> repository.loadAll())
-                .thenAccept(auctionManager::replaceAll)
+                .thenAccept(listings -> {
+                    auctionManager.replaceAll(listings);
+                    long maxUpdated = 0L;
+                    for (AuctionListing listing : listings) {
+                        maxUpdated = Math.max(maxUpdated, listing.updatedAt());
+                    }
+                    lastSyncedAt.set(maxUpdated);
+                })
                 .exceptionally(throwable -> {
                     plugin.getLogger().severe("Failed to initialize auction storage: " + throwable.getMessage());
                     throwable.printStackTrace();
@@ -74,11 +93,22 @@ public final class AuctionService {
         long intervalSeconds = plugin.getConfig().getLong("auction.expired-scan-interval-seconds", 60L);
         long intervalTicks = Math.max(20L, intervalSeconds * 20L);
         this.expiryTask = schedulerAdapter.runGlobalRepeating(this::scanAndExpireAuctions, intervalTicks, intervalTicks);
+
+        if (databaseType == DatabaseType.MYSQL) {
+            long pollSeconds = plugin.getConfig().getLong("sync.poll-interval-seconds", 3L);
+            if (pollSeconds > 0L) {
+                long pollTicks = Math.max(20L, pollSeconds * 20L);
+                this.pollTask = schedulerAdapter.runGlobalRepeating(this::pollRemoteUpdates, pollTicks, pollTicks);
+            }
+        }
     }
 
     public void shutdown() {
         if (expiryTask != null) {
             expiryTask.cancel();
+        }
+        if (pollTask != null) {
+            pollTask.cancel();
         }
         recoverPendingSalesOnShutdown();
         schedulerAdapter.shutdown();
@@ -226,11 +256,15 @@ public final class AuctionService {
 
         long now = System.currentTimeMillis();
         long durationMillis = Math.max(1L, durationHours) * 3_600_000L;
-        AuctionListing listing = new AuctionListing(UUID.randomUUID(), listingItem.clone(), player.getUniqueId(), price, now, now + durationMillis, AuctionStatus.ACTIVE, null, 0L, false);
+        AuctionListing listing = new AuctionListing(
+                UUID.randomUUID(), listingItem.clone(), player.getUniqueId(), price, now, now + durationMillis,
+                AuctionStatus.ACTIVE, null, 0L, false, now);
 
         return repository.save(listing)
                 .thenApply(ignored -> {
                     auctionManager.upsert(listing);
+                    listingSyncBus.publish(listing.auctionId(), ListingSyncAction.UPSERT);
+                    noteSynced(listing.updatedAt());
                     return ActionResult.success(msg(
                             "service.listed",
                             "&aListed %item% for &6%price%&a.",
@@ -274,56 +308,91 @@ public final class AuctionService {
                     msg("service.auction-processing", "&cThat auction is already being processed.")));
         }
 
-        OfflinePlayer offlineBuyer = Bukkit.getOfflinePlayer(buyer.getUniqueId());
-        if (!economyProvider.has(offlineBuyer, listing.price())) {
-            operationLock.set(false);
-            return CompletableFuture.completedFuture(ActionResult.failure(
-                    msg("service.insufficient-funds", "&cYou do not have enough money.")));
-        }
-
-        EconomyResponse withdrawal = economyProvider.withdraw(offlineBuyer, listing.price());
-        if (!withdrawal.transactionSuccess()) {
-            operationLock.set(false);
-            return CompletableFuture.completedFuture(ActionResult.failure(msg(
-                    "service.withdraw-failed",
-                    "&cUnable to withdraw funds: %error%",
-                    "error", withdrawal.errorMessage)));
-        }
-
-        OfflinePlayer seller = Bukkit.getOfflinePlayer(listing.seller());
-        EconomyResponse deposit = economyProvider.deposit(seller, listing.price());
-        if (!deposit.transactionSuccess()) {
-            economyProvider.deposit(offlineBuyer, listing.price());
-            operationLock.set(false);
-            return CompletableFuture.completedFuture(ActionResult.failure(
-                    msg("service.pay-seller-failed", "&cUnable to pay the seller right now.")));
-        }
-
-        AuctionListing soldListing = listing.asSold(buyer.getUniqueId(), now);
-        auctionManager.upsert(soldListing);
-
-        return repository.update(soldListing)
-                .thenApply(ignored -> {
-                    deliverItem(buyer, soldListing.item());
-                    return ActionResult.success(msg(
-                            "service.purchased",
-                            "&aPurchased %item% for &6%price%&a.",
-                            "item", itemName(soldListing.item()),
-                            "price", economyProvider.format(soldListing.price())));
+        UUID buyerId = buyer.getUniqueId();
+        return repository.claimSold(auctionId, buyerId, now)
+                .thenCompose(claimed -> {
+                    if (!claimed) {
+                        return refreshListingFromStorage(auctionId)
+                                .thenApply(ignored -> ActionResult.failure(
+                                        msg("service.auction-unavailable", "&cThat auction is no longer available.")));
+                    }
+                    return settleClaimedPurchase(buyer, listing, now);
                 })
                 .exceptionally(throwable -> {
-                    plugin.getLogger().severe("Failed to persist auction purchase: " + throwable.getMessage());
-                    economyProvider.deposit(offlineBuyer, listing.price());
-                    economyProvider.withdraw(seller, listing.price());
-                    auctionManager.upsert(listing);
+                    plugin.getLogger().severe("Failed to claim auction purchase: " + throwable.getMessage());
                     return ActionResult.failure(msg(
                             "service.purchase-failed",
                             "&cPurchase failed. Your money has been refunded."));
                 })
-                .whenComplete((result, throwable) -> {
-                    operationLock.set(false);
-                    operationLocks.remove(auctionId);
+                .whenComplete((result, throwable) -> releaseOperationLock(auctionId, operationLock));
+    }
+
+    private CompletableFuture<ActionResult> settleClaimedPurchase(Player buyer, AuctionListing listing, long soldTime) {
+        CompletableFuture<ActionResult> settled = new CompletableFuture<>();
+        UUID buyerId = buyer.getUniqueId();
+        Runnable retired = () -> repository.releaseClaim(listing.auctionId(), buyerId, System.currentTimeMillis())
+                .thenAccept(released -> {
+                    if (released) {
+                        listingSyncBus.publish(listing.auctionId(), ListingSyncAction.UPSERT);
+                    }
                 });
+        if (!buyer.isOnline()) {
+            retired.run();
+            return CompletableFuture.completedFuture(ActionResult.failure(
+                    msg("service.purchase-failed", "&cPurchase failed. Your money has been refunded.")));
+        }
+        schedulerAdapter.runEntity(buyer, () -> {
+            try {
+                if (!buyer.isOnline()) {
+                    releaseClaimAndNotify(listing.auctionId(), buyerId);
+                    settled.complete(ActionResult.failure(
+                            msg("service.purchase-failed", "&cPurchase failed. Your money has been refunded.")));
+                    return;
+                }
+                OfflinePlayer offlineBuyer = Bukkit.getOfflinePlayer(buyerId);
+                if (!economyProvider.has(offlineBuyer, listing.price())) {
+                    releaseClaimAndNotify(listing.auctionId(), buyerId);
+                    settled.complete(ActionResult.failure(
+                            msg("service.insufficient-funds", "&cYou do not have enough money.")));
+                    return;
+                }
+                EconomyResponse withdrawal = economyProvider.withdraw(offlineBuyer, listing.price());
+                if (!withdrawal.transactionSuccess()) {
+                    releaseClaimAndNotify(listing.auctionId(), buyerId);
+                    settled.complete(ActionResult.failure(msg(
+                            "service.withdraw-failed",
+                            "&cUnable to withdraw funds: %error%",
+                            "error", withdrawal.errorMessage)));
+                    return;
+                }
+                OfflinePlayer seller = Bukkit.getOfflinePlayer(listing.seller());
+                EconomyResponse deposit = economyProvider.deposit(seller, listing.price());
+                if (!deposit.transactionSuccess()) {
+                    economyProvider.deposit(offlineBuyer, listing.price());
+                    releaseClaimAndNotify(listing.auctionId(), buyerId);
+                    settled.complete(ActionResult.failure(
+                            msg("service.pay-seller-failed", "&cUnable to pay the seller right now.")));
+                    return;
+                }
+                AuctionListing soldListing = listing.asSold(buyerId, soldTime);
+                auctionManager.upsert(soldListing);
+                noteSynced(soldListing.updatedAt());
+                listingSyncBus.publish(soldListing.auctionId(), ListingSyncAction.UPSERT);
+                deliverItem(buyer, soldListing.item());
+                settled.complete(ActionResult.success(msg(
+                        "service.purchased",
+                        "&aPurchased %item% for &6%price%&a.",
+                        "item", itemName(soldListing.item()),
+                        "price", economyProvider.format(soldListing.price()))));
+            } catch (Exception exception) {
+                plugin.getLogger().severe("Failed to settle auction purchase: " + exception.getMessage());
+                releaseClaimAndNotify(listing.auctionId(), buyerId);
+                settled.complete(ActionResult.failure(msg(
+                        "service.purchase-failed",
+                        "&cPurchase failed. Your money has been refunded.")));
+            }
+        }, retired);
+        return settled;
     }
 
     public CompletableFuture<ActionResult> cancelAuction(Player seller, UUID auctionId) {
@@ -345,19 +414,25 @@ public final class AuctionService {
                     msg("service.only-active-cancel", "&cOnly active auctions can be cancelled.")));
         }
 
-        AuctionListing cancelled = listing.withStatus(AuctionStatus.CANCELLED).markSellerClaimed();
-        auctionManager.upsert(cancelled);
-
-        return repository.update(cancelled)
-                .thenApply(ignored -> {
+        long now = System.currentTimeMillis();
+        return repository.claimCancelled(auctionId, now)
+                .thenCompose(claimed -> {
+                    if (!claimed) {
+                        return refreshListingFromStorage(auctionId)
+                                .thenApply(ignored -> ActionResult.failure(
+                                        msg("service.auction-unavailable", "&cThat auction is no longer available.")));
+                    }
+                    AuctionListing cancelled = listing.withStatus(AuctionStatus.CANCELLED).markSellerClaimed(now);
+                    auctionManager.upsert(cancelled);
+                    noteSynced(now);
+                    listingSyncBus.publish(auctionId, ListingSyncAction.UPSERT);
                     restoreItem(seller, cancelled.item());
-                    return ActionResult.success(msg(
+                    return CompletableFuture.completedFuture(ActionResult.success(msg(
                             "service.cancelled",
-                            "&aAuction cancelled and item returned."));
+                            "&aAuction cancelled and item returned.")));
                 })
                 .exceptionally(throwable -> {
                     plugin.getLogger().severe("Failed to persist cancellation: " + throwable.getMessage());
-                    auctionManager.upsert(listing);
                     return ActionResult.failure(msg(
                             "service.cancel-failed",
                             "&cFailed to cancel auction. Please try again."));
@@ -384,13 +459,18 @@ public final class AuctionService {
                     msg("service.already-collected", "&cThat auction has already been collected.")));
         }
 
+        long now = System.currentTimeMillis();
         if (listing.status() == AuctionStatus.SOLD) {
-            AuctionListing claimed = listing.markSellerClaimed();
+            AuctionListing claimed = listing.markSellerClaimed(now);
             auctionManager.upsert(claimed);
             return repository.update(claimed)
-                    .thenApply(ignored -> ActionResult.success(msg(
+                    .thenApply(ignored -> {
+                        listingSyncBus.publish(auctionId, ListingSyncAction.UPSERT);
+                        noteSynced(now);
+                        return ActionResult.success(msg(
                             "service.sale-collected",
-                            "&aSale marked as collected. Payment was delivered through Vault at purchase time.")))
+                            "&aSale marked as collected. Payment was delivered through Vault at purchase time."));
+                    })
                     .exceptionally(throwable -> {
                         auctionManager.upsert(listing);
                         return ActionResult.failure(msg(
@@ -401,10 +481,12 @@ public final class AuctionService {
         }
 
         if (listing.status() == AuctionStatus.EXPIRED || listing.status() == AuctionStatus.CANCELLED) {
-            AuctionListing collected = listing.markSellerClaimed();
+            AuctionListing collected = listing.markSellerClaimed(now);
             auctionManager.upsert(collected);
             return repository.update(collected)
                     .thenApply(ignored -> {
+                        listingSyncBus.publish(auctionId, ListingSyncAction.UPSERT);
+                        noteSynced(now);
                         restoreItem(seller, listing.item());
                         return ActionResult.success(msg(
                                 "service.item-returned",
@@ -478,12 +560,7 @@ public final class AuctionService {
         long now = System.currentTimeMillis();
         repository.findExpiredActive(now).thenAccept(listings -> {
             for (AuctionListing listing : listings) {
-                AuctionListing expired = listing.asExpired();
-                auctionManager.upsert(expired);
-                repository.update(expired).exceptionally(throwable -> {
-                    plugin.getLogger().warning("Failed to persist expired auction " + listing.auctionId() + ": " + throwable.getMessage());
-                    return null;
-                });
+                expireListingIfNeeded(listing);
             }
         }).exceptionally(throwable -> {
             plugin.getLogger().warning("Failed to scan expired auctions: " + throwable.getMessage());
@@ -495,12 +572,59 @@ public final class AuctionService {
         if (listing.status() != AuctionStatus.ACTIVE) {
             return;
         }
-        AuctionListing expired = listing.asExpired();
-        auctionManager.upsert(expired);
-        repository.update(expired).exceptionally(throwable -> {
+        long now = System.currentTimeMillis();
+        repository.claimExpired(listing.auctionId(), now, now).thenAccept(claimed -> {
+            if (!claimed) {
+                refreshListingFromStorage(listing.auctionId());
+                return;
+            }
+            AuctionListing expired = listing.asExpired(now);
+            auctionManager.upsert(expired);
+            noteSynced(now);
+            listingSyncBus.publish(listing.auctionId(), ListingSyncAction.UPSERT);
+        }).exceptionally(throwable -> {
             plugin.getLogger().warning("Failed to persist expired auction " + listing.auctionId() + ": " + throwable.getMessage());
             return null;
         });
+    }
+
+    private CompletableFuture<Void> refreshListingFromStorage(UUID auctionId) {
+        return repository.findById(auctionId).thenAccept(optional -> {
+            if (optional.isPresent()) {
+                auctionManager.mergeRemote(optional.get());
+                noteSynced(optional.get().updatedAt());
+            } else {
+                auctionManager.remove(auctionId);
+            }
+        });
+    }
+
+    private void releaseClaimAndNotify(UUID auctionId, UUID buyerId) {
+        long now = System.currentTimeMillis();
+        repository.releaseClaim(auctionId, buyerId, now).thenAccept(released -> {
+            if (released) {
+                refreshListingFromStorage(auctionId);
+                listingSyncBus.publish(auctionId, ListingSyncAction.UPSERT);
+                noteSynced(now);
+            }
+        });
+    }
+
+    private void pollRemoteUpdates() {
+        long cursor = lastSyncedAt.get();
+        repository.loadUpdatedSince(cursor).thenAccept(listings -> {
+            for (AuctionListing listing : listings) {
+                auctionManager.mergeRemote(listing);
+                noteSynced(listing.updatedAt());
+            }
+        }).exceptionally(throwable -> {
+            plugin.getLogger().warning("Failed to poll remote auction updates: " + throwable.getMessage());
+            return null;
+        });
+    }
+
+    private void noteSynced(long updatedAt) {
+        lastSyncedAt.updateAndGet(previous -> Math.max(previous, updatedAt));
     }
 
     private void removeHeldItem(Player player) {
