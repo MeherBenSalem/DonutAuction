@@ -24,7 +24,7 @@ The shaded jar is `target/DonutAuctionHouse-<version>.jar`.
 
 ## Compatibility (required for releases)
 
-Every public release must support **Paper, Folia, Purpur, Spigot, and Bukkit** tags for **Minecraft 1.20.1 through 26.2**.
+Every public release must support **Paper, Folia, Purpur, Spigot, and Bukkit** tags for **Minecraft 1.20.1 through 26.3**.
 
 - Keep `api-version: '1.20'` and `folia-supported: true` in `plugin.yml`.
 - Compile against Paper API 1.20.1 (see `pom.xml`). Do not call APIs that only exist on newer Minecraft unless you feature-detect.

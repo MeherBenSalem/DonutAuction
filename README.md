@@ -1,6 +1,6 @@
 # DonutAuctionHouse
 
-Standalone auction house plugin for **Paper**, **Folia**, **Purpur**, **Spigot**, and **Bukkit**, Minecraft **1.20.1 through 26.2**.
+Standalone auction house plugin for **Paper**, **Folia**, **Purpur**, **Spigot**, and **Bukkit**, Minecraft **1.20.1 through 26.3**.
 
 List items, browse the market, buy and sell with a Vault-compatible economy. Optional DonutCore integration.
 
@@ -18,7 +18,7 @@ List items, browse the market, buy and sell with a Vault-compatible economy. Opt
 
 ## Requirements
 
-- Paper, Folia, or Purpur **1.20.1–26.2** (Spigot/Bukkit tagged on stores; Paper-family servers are first-class)
+- Paper, Folia, or Purpur **1.20.1–26.3** (Spigot/Bukkit tagged on stores; Paper-family servers are first-class)
 - Java **17+** (Java 21 is typical on 1.20.5+)
 - Vault or VaultUnlocked plus an economy plugin that registers Vault's Economy service
 - Optional: DonutCore

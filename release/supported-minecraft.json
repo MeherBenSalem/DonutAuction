@@ -1,7 +1,7 @@
 {
   "comment": "Every NightBeam plugin release must tag Paper and Folia for all of these Minecraft versions.",
   "min": "1.20.1",
-  "max": "26.2",
+  "max": "26.3",
   "loaders": ["paper", "folia", "purpur", "spigot", "bukkit"],
   "game_versions": [
     "1.20.1",
@@ -25,6 +25,7 @@
     "26.1",
     "26.1.1",
     "26.1.2",
-    "26.2"
+    "26.2",
+    "26.3"
   ]
 }

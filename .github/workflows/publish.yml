@@ -1,6 +1,6 @@
 # Publish DonutAuctionHouse to Modrinth and CurseForge on v*.*.* tags.
 # One jar, one version, tagged Paper + Folia for every Minecraft version in
-# release/supported-minecraft.json (1.20.1 through 26.2).
+# release/supported-minecraft.json (1.20.1 through 26.3).
 #
 # Secrets: MODRINTH_TOKEN, CURSEFORGE_TOKEN, CURSEFORGE_API_KEY
 # Variables: MODRINTH_ID, CURSEFORGE_ID

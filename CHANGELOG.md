@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.1
+
+- Store tags extended to Minecraft **26.3** (legacy 1.20.1–26.2 unchanged)
+
 ## 1.5.0
 
 - Shared MySQL listings are claimed with `UPDATE ... WHERE status = ACTIVE` before Vault is charged, so two Folia nodes cannot sell the same auction twice
