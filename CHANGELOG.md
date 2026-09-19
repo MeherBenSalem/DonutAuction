@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.5.2
+
+- Browse GUI previous-page arrow restored at slot 46 (sell held item stays at 45; next page stays at 53)
+- Page arrows show `page/totalPages` and total listing count
+- Sort, filter, and search reset the browse session to page 1
+- `AuctionManager.browse()` clamps page to at least 1 so a non-positive page cannot throw
+
 ## 1.5.1
 
 - Store tags extended to Minecraft **26.3** (legacy 1.20.1–26.2 unchanged)

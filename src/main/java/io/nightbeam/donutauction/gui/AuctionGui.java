@@ -30,6 +30,10 @@ import org.bukkit.inventory.ItemStack;
 
 public final class AuctionGui extends BaseGui {
 
+    static final int SELL_HELD_SLOT = 45;
+    static final int PREVIOUS_PAGE_SLOT = 46;
+    static final int NEXT_PAGE_SLOT = 53;
+
     private final GuiManager guiManager;
     private final AuctionService auctionService;
     private final PlayerPreferenceManager preferenceManager;
@@ -111,7 +115,7 @@ public final class AuctionGui extends BaseGui {
                 .lore(messages().component("gui.auction.your-items-lore", "View active, sold, and expired listings"))
                 .build());
 
-        inventory.setItem(45, ItemBuilder.of(Material.EMERALD)
+        inventory.setItem(SELL_HELD_SLOT, ItemBuilder.of(Material.EMERALD)
                 .name(messages().component("gui.auction.sell-held-item", "Sell Held Item"))
                 .lore(
                         messages().component("gui.auction.sell-held-lore", "List the item in your main hand"),
@@ -119,13 +123,30 @@ public final class AuctionGui extends BaseGui {
                 )
                 .build());
 
+        Component pageIndicator = messages().component(
+                "gui.common.page-indicator",
+                "Page: %page%/%pages%",
+                "page", String.valueOf(page.currentPage()),
+                "pages", String.valueOf(page.totalPages()));
+        Component resultsCount = messages().component(
+                "gui.common.results-count",
+                "%count% listings",
+                "count", String.valueOf(page.totalResults()));
+
+        String prevPageLore = page.hasPreviousPage()
+                ? messages().raw("gui.common.go-back", "Go back")
+                : messages().raw("gui.common.no-previous-page", "No previous page");
         String nextPageLore = page.hasNextPage()
                 ? messages().raw("gui.auction.next-page-lore-available", "Open the next page")
                 : messages().raw("gui.common.no-more-listings", "No more listings");
 
-        inventory.setItem(53, ItemBuilder.of(Material.ARROW)
+        inventory.setItem(PREVIOUS_PAGE_SLOT, ItemBuilder.of(Material.ARROW)
+                .name(messages().component("gui.common.previous-page", "Previous Page"))
+                .lore(pageIndicator, resultsCount, messages().component(prevPageLore))
+                .build());
+        inventory.setItem(NEXT_PAGE_SLOT, ItemBuilder.of(Material.ARROW)
                 .name(messages().component("gui.common.next-page", "Next Page"))
-                .lore(messages().component(nextPageLore))
+                .lore(pageIndicator, resultsCount, messages().component(nextPageLore))
                 .build());
 
         return inventory;
@@ -191,15 +212,26 @@ public final class AuctionGui extends BaseGui {
             return;
         }
 
-        if (slot == 45) {
+        if (slot == SELL_HELD_SLOT) {
             guiManager.startSellFromHeldItem(player);
             return;
         }
 
-        if (slot == 53 && auctionService.browse(request).hasNextPage()) {
-            session.request(request.withPage(request.page() + 1));
+        AuctionBrowseRequest nextRequest = pageAfterClick(request, auctionService.browse(request), slot);
+        if (nextRequest != request) {
+            session.request(nextRequest);
             guiManager.refreshAuctionHouse(player);
         }
+    }
+
+    static AuctionBrowseRequest pageAfterClick(AuctionBrowseRequest request, AuctionPage page, int slot) {
+        if (slot == PREVIOUS_PAGE_SLOT && page.hasPreviousPage()) {
+            return request.withPage(request.page() - 1);
+        }
+        if (slot == NEXT_PAGE_SLOT && page.hasNextPage()) {
+            return request.withPage(request.page() + 1);
+        }
+        return request;
     }
 
     private ItemStack buildListingItem(AuctionListing listing, long now) {

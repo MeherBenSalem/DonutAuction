@@ -19,7 +19,7 @@ public record AuctionBrowseRequest(
     }
 
     public AuctionBrowseRequest withSortMode(AuctionSortMode newSortMode) {
-        return new AuctionBrowseRequest(page, newSortMode, filterCategory, searchTerm);
+        return new AuctionBrowseRequest(1, newSortMode, filterCategory, searchTerm);
     }
 
     public AuctionBrowseRequest withFilter(AuctionFilterCategory newFilterCategory) {

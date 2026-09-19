@@ -84,7 +84,7 @@ public final class AuctionManager {
 
         int totalResults = filtered.size();
         int totalPages = Math.max(1, (int) Math.ceil(totalResults / (double) pageSize));
-        int page = Math.min(request.page(), totalPages);
+        int page = Math.max(1, Math.min(request.page(), totalPages));
         int fromIndex = (page - 1) * pageSize;
         int toIndex = Math.min(filtered.size(), fromIndex + pageSize);
         List<AuctionListing> pageListings = fromIndex >= filtered.size() ? List.of() : List.copyOf(filtered.subList(fromIndex, toIndex));
