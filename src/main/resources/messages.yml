@@ -128,6 +128,8 @@ gui:
     no-previous-page: No previous page
     open-next-page: Open next page
     no-more-listings: No more listings
+    page-indicator: 'Page: %page%/%pages%'
+    results-count: '%count% listings'
     current-none: 'Current: none'
     current-value: 'Current: %value%'
     step: 'Step: %step%'
