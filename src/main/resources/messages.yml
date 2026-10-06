@@ -116,6 +116,24 @@ duration:
 
 # ── GUI common ────────────────────────────────────────────────────────────────
 gui:
+  history:
+    entry: Transaction History
+    entry-lore: View your completed purchases and sales
+    title: '&6Transaction History'
+    bought: Bought
+    sold: Sold
+    refresh: Refresh History
+    count: '%count% completed transactions'
+    loading: Loading history...
+    empty: No completed transactions
+    error: Unable to load history. Click Refresh to retry.
+    unavailable-item: Item details unavailable
+    price: '&7Price: %price%'
+    date: '&7Date: %date%'
+    seller: '&7Seller: %name%'
+    buyer: '&7Buyer: %name%'
+    id: '&8Transaction: %id%'
+    read-only: '&8Completed transaction - read only'
   common:
     cancel: Cancel
     selected: Selected

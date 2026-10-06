@@ -201,6 +201,14 @@ public final class AuctionHousePlugin extends JavaPlugin {
     }
 
     public void applyConfigDefaults() {
+        getConfig().addDefault("price-display.locale", "en-US");
+        getConfig().addDefault("price-display.compact.enabled", false);
+        getConfig().addDefault("price-display.compact.precision", 1);
+        getConfig().addDefault("price-display.compact.thousand-suffix", "k");
+        getConfig().addDefault("price-display.compact.million-suffix", "M");
+        getConfig().addDefault("price-display.compact.template", "%amount%%suffix% %currency%");
+        getConfig().addDefault("history.timezone", "UTC");
+        getConfig().addDefault("history.date-format", "yyyy-MM-dd HH:mm z");
         getConfig().addDefault("auction.min-price", 10.0D);
         getConfig().addDefault("messages.price-below-min", "&cMinimum auction price is &6%min_price%&c.");
         getConfig().addDefault("auction-lore.mode", "APPEND");

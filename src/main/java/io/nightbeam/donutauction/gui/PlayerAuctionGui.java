@@ -133,7 +133,7 @@ public final class PlayerAuctionGui extends BaseGui {
         auctionLore.add(messages().component(
                 "gui.listing-lore.price",
                 "&7Price: %price%",
-                "price", auctionService.formatPrice(listing.price())));
+                "price", auctionService.formatDisplayPrice(listing.price())));
         auctionLore.add(messages().component(
                 "gui.listing-lore.time-remaining",
                 "&7Time remaining: %time%",

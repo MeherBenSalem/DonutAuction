@@ -24,12 +24,20 @@ on:
         description: "modrinth, curseforge, or both"
         required: false
         default: "both"
+      artifact_run_id:
+        description: "Recover only missing uploads from this existing run's immutable jar"
+        required: false
+
+concurrency:
+  group: donutauction-publish-${{ github.event.inputs.version || github.ref_name }}
+  cancel-in-progress: false
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      actions: read
     steps:
       - uses: actions/checkout@v4
 
@@ -53,9 +61,29 @@ jobs:
           cache: maven
 
       - name: Build
+        if: ${{ inputs.artifact_run_id == '' }}
         run: |
           mvn -B -q versions:set -DnewVersion="${{ steps.ver.outputs.version }}" -DgenerateBackupPoms=false
           mvn -B -q package
+
+      - name: Recover original artifact
+        if: ${{ inputs.artifact_run_id != '' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: DonutAuctionHouse-${{ steps.ver.outputs.version }}
+          path: target
+          run-id: ${{ inputs.artifact_run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Recover original publication receipts
+        if: ${{ inputs.artifact_run_id != '' }}
+        uses: actions/download-artifact@v4
+        with:
+          pattern: publication-receipts-${{ steps.ver.outputs.version }}
+          path: recovery-receipts
+          merge-multiple: true
+          run-id: ${{ inputs.artifact_run_id }}
+          github-token: ${{ github.token }}
 
       - name: Locate jar
         id: jar
@@ -72,10 +100,19 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
+
+      - run: node --test scripts/release-helpers.test.mjs
+
+      - name: Preserve immutable release jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: DonutAuctionHouse-${{ steps.ver.outputs.version }}
+          path: ${{ steps.jar.outputs.path }}
+          if-no-files-found: error
+          retention-days: 90
 
       - name: Upload Modrinth + CurseForge
-        if: ${{ inputs.dry_run != 'true' }}
         env:
           MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
           CURSEFORGE_TOKEN: ${{ secrets.CURSEFORGE_TOKEN }}
@@ -85,4 +122,15 @@ jobs:
           VERSION: ${{ steps.ver.outputs.version }}
           JAR_PATH: ${{ steps.jar.outputs.path }}
           PLATFORMS: ${{ inputs.platforms || 'both' }}
+          PREFLIGHT_ONLY: ${{ inputs.dry_run || 'false' }}
+          RECOVERY_RECEIPTS: recovery-receipts
         run: node scripts/publish-release.mjs
+
+      - name: Preserve publication receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: publication-receipts-${{ steps.ver.outputs.version }}
+          path: '*receipt.json'
+          if-no-files-found: ignore
+          retention-days: 90

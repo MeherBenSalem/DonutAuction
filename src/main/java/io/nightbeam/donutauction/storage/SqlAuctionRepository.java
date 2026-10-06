@@ -2,6 +2,9 @@ package io.nightbeam.donutauction.storage;
 
 import io.nightbeam.donutauction.model.AuctionListing;
 import io.nightbeam.donutauction.model.AuctionStatus;
+import io.nightbeam.donutauction.model.HistoryView;
+import io.nightbeam.donutauction.model.TransactionPage;
+import io.nightbeam.donutauction.model.TransactionRecord;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -47,28 +50,53 @@ public final class SqlAuctionRepository implements AuctionRepository {
                             sold_time BIGINT NOT NULL,
                             status VARCHAR(16) NOT NULL,
                             seller_claimed BOOLEAN NOT NULL DEFAULT FALSE,
+                            purchase_completed BOOLEAN NOT NULL DEFAULT TRUE,
                             updated_at BIGINT NOT NULL DEFAULT 0
                         )
                         """);
-                statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_auctions_status_expiration ON auctions(status, expiration_time)");
-                statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_auctions_seller_status ON auctions(seller_uuid, status)");
-                addColumnIfMissing(statement, "updated_at");
-                try {
-                    statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_auctions_updated_at ON auctions(updated_at)");
-                } catch (SQLException ignored) {
-                    // Older MySQL without IF NOT EXISTS on indexes; table still works.
-                }
+                addColumnIfMissing(connection, "updated_at", "BIGINT NOT NULL DEFAULT 0");
+                // Legacy SOLD rows retain their history. New claims explicitly clear this flag.
+                addColumnIfMissing(connection, "purchase_completed", "BOOLEAN NOT NULL DEFAULT TRUE");
+                ensureIndex(connection, "idx_auctions_status_expiration", "status, expiration_time");
+                ensureIndex(connection, "idx_auctions_seller_status", "seller_uuid, status");
+                ensureIndex(connection, "idx_auctions_updated_at", "updated_at");
+                ensureIndex(connection, "idx_auctions_buyer_history", "buyer_uuid, status, purchase_completed, sold_time");
+                ensureIndex(connection, "idx_auctions_seller_history", "seller_uuid, status, purchase_completed, sold_time");
             } catch (SQLException exception) {
                 throw new CompletionException(exception);
             }
         }, asyncExecutor);
     }
 
-    private void addColumnIfMissing(Statement statement, String column) {
-        try {
-            statement.executeUpdate("ALTER TABLE auctions ADD COLUMN " + column + " BIGINT NOT NULL DEFAULT 0");
-        } catch (SQLException ignored) {
-            // Column already exists.
+    private void addColumnIfMissing(Connection connection, String column, String definition) throws SQLException {
+        if (hasColumn(connection, column)) return;
+        try (Statement statement = connection.createStatement()) {
+            statement.executeUpdate("ALTER TABLE auctions ADD COLUMN " + column + " " + definition);
+        } catch (SQLException exception) {
+            // Another node may migrate concurrently. Other failures must stop initialization.
+            if (!hasColumn(connection, column)) throw exception;
+        }
+    }
+
+    private boolean hasColumn(Connection connection, String column) throws SQLException {
+        try (ResultSet columns = connection.getMetaData().getColumns(connection.getCatalog(), null, "auctions", column)) {
+            return columns.next();
+        }
+    }
+
+    private void ensureIndex(Connection connection, String name, String columns) throws SQLException {
+        if (hasIndex(connection, name)) return;
+        try (Statement statement = connection.createStatement()) {
+            statement.executeUpdate("CREATE INDEX " + name + " ON auctions(" + columns + ")");
+        } catch (SQLException exception) {
+            if (!hasIndex(connection, name)) throw exception;
+        }
+    }
+
+    private boolean hasIndex(Connection connection, String name) throws SQLException {
+        try (ResultSet indexes = connection.getMetaData().getIndexInfo(connection.getCatalog(), null, "auctions", false, false)) {
+            while (indexes.next()) if (name.equalsIgnoreCase(indexes.getString("INDEX_NAME"))) return true;
+            return false;
         }
     }
 
@@ -131,7 +159,7 @@ public final class SqlAuctionRepository implements AuctionRepository {
     @Override
     public CompletableFuture<Boolean> claimSold(UUID auctionId, UUID buyerId, long soldTime) {
         return CompletableFuture.supplyAsync(() -> executeUpdate("""
-                        UPDATE auctions SET buyer_uuid = ?, sold_time = ?, status = ?, seller_claimed = 0, updated_at = ?
+                        UPDATE auctions SET buyer_uuid = ?, sold_time = ?, status = ?, seller_claimed = 0, updated_at = ?, purchase_completed = FALSE
                         WHERE auction_id = ? AND status = ? AND expiration_time > ?
                         """,
                 statement -> {
@@ -149,7 +177,7 @@ public final class SqlAuctionRepository implements AuctionRepository {
     @Override
     public CompletableFuture<Boolean> releaseClaim(UUID auctionId, UUID buyerId, long updatedAt) {
         return CompletableFuture.supplyAsync(() -> executeUpdate("""
-                        UPDATE auctions SET buyer_uuid = NULL, sold_time = 0, status = ?, updated_at = ?
+                        UPDATE auctions SET buyer_uuid = NULL, sold_time = 0, status = ?, updated_at = ?, purchase_completed = FALSE
                         WHERE auction_id = ? AND status = ? AND buyer_uuid = ?
                         """,
                 statement -> {
@@ -217,6 +245,58 @@ public final class SqlAuctionRepository implements AuctionRepository {
                 "SELECT * FROM auctions WHERE seller_uuid = ? ORDER BY listing_time DESC",
                 statement -> statement.setString(1, sellerId.toString())
         ), asyncExecutor);
+    }
+
+    @Override
+    public CompletableFuture<Boolean> markPurchaseCompleted(UUID auctionId, UUID buyerId) {
+        return CompletableFuture.supplyAsync(() -> executeUpdate(
+                "UPDATE auctions SET purchase_completed = TRUE WHERE auction_id = ? AND buyer_uuid = ? AND status = 'SOLD'",
+                statement -> {
+                    statement.setString(1, auctionId.toString());
+                    statement.setString(2, buyerId.toString());
+                }) == 1, asyncExecutor);
+    }
+
+    @Override
+    public CompletableFuture<TransactionPage> findHistory(UUID viewer, HistoryView view, int page) {
+        java.util.Objects.requireNonNull(viewer, "viewer");
+        java.util.Objects.requireNonNull(view, "view");
+        return CompletableFuture.supplyAsync(() -> {
+            String ownerColumn = view == HistoryView.BOUGHT ? "buyer_uuid" : "seller_uuid";
+            String otherColumn = view == HistoryView.BOUGHT ? "seller_uuid" : "buyer_uuid";
+            String where = " WHERE " + ownerColumn + " = ? AND status = 'SOLD' AND purchase_completed = TRUE AND sold_time > 0 AND buyer_uuid IS NOT NULL";
+            try (Connection connection = dataSource.getConnection()) {
+                // A consistent snapshot prevents count/page disagreement during new purchases.
+                if (connection.getMetaData().supportsTransactionIsolationLevel(Connection.TRANSACTION_REPEATABLE_READ)) {
+                    connection.setTransactionIsolation(Connection.TRANSACTION_REPEATABLE_READ);
+                }
+                connection.setAutoCommit(false);
+                long count;
+                try (PreparedStatement statement = connection.prepareStatement("SELECT COUNT(*) FROM auctions" + where)) {
+                    statement.setString(1, viewer.toString());
+                    try (ResultSet result = statement.executeQuery()) { result.next(); count = result.getLong(1); }
+                }
+                int pages = (int) Math.max(1, Math.min(Integer.MAX_VALUE, (count + 44) / 45));
+                int current = Math.max(1, Math.min(pages, page));
+                List<TransactionRecord> records = new ArrayList<>();
+                try (PreparedStatement statement = connection.prepareStatement(
+                        "SELECT auction_id, item_data, price, sold_time, " + otherColumn + " AS counterparty FROM auctions" + where
+                                + " ORDER BY sold_time DESC, auction_id DESC LIMIT 45 OFFSET ?")) {
+                    statement.setString(1, viewer.toString());
+                    statement.setLong(2, (long) (current - 1) * 45);
+                    try (ResultSet result = statement.executeQuery()) {
+                        while (result.next()) {
+                            String other = result.getString("counterparty");
+                            records.add(new TransactionRecord(UUID.fromString(result.getString("auction_id")),
+                                    result.getString("item_data"), result.getDouble("price"), result.getLong("sold_time"),
+                                    other == null ? null : UUID.fromString(other)));
+                        }
+                    }
+                }
+                connection.commit();
+                return new TransactionPage(viewer, view, records, current, pages, count);
+            } catch (SQLException exception) { throw new CompletionException(exception); }
+        }, asyncExecutor);
     }
 
     @Override

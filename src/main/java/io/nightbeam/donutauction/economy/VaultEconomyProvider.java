@@ -66,6 +66,10 @@ public final class VaultEconomyProvider {
         return economy.format(amount);
     }
 
+    public String currencyName() {
+        return economy.currencyNamePlural();
+    }
+
     public double getBalance(OfflinePlayer player) {
         return economy.getBalance(player);
     }

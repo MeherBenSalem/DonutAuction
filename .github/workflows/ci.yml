@@ -8,13 +8,35 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        java: ["17", "21"]
     permissions:
       contents: read
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: test
+          MYSQL_DATABASE: donutauction_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -ptest"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "21"
+          java-version: ${{ matrix.java }}
           cache: maven
       - run: mvn -B -q test
+      - name: Native MySQL history, row claims and legacy schema migration
+        run: mvn -B -q -Dauction.test.mysql.url=jdbc:mysql://localhost:3306/donutauction_test -Dtest=TransactionHistoryRepositoryTest test
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - run: node --test scripts/release-helpers.test.mjs

@@ -21,6 +21,20 @@ auction-lore:
   mode: APPEND
   separator: true
 
+# Presentation only. Economy-provider formatting remains the default.
+price-display:
+  locale: en-US
+  compact:
+    enabled: false
+    precision: 1 # 0-6 fractional digits, HALF_UP; trailing zeros omitted
+    thousand-suffix: k
+    million-suffix: M
+    template: '%amount%%suffix% %currency%' # currency name from the economy provider
+
+history:
+  timezone: UTC # IANA timezone; dates include the zone
+  date-format: 'yyyy-MM-dd HH:mm z'
+
 auction-limits:
   enabled: true
   default-limit: 5

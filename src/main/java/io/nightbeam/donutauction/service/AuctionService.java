@@ -8,6 +8,9 @@ import io.nightbeam.donutauction.model.AuctionFilterCategory;
 import io.nightbeam.donutauction.model.AuctionListing;
 import io.nightbeam.donutauction.model.AuctionPage;
 import io.nightbeam.donutauction.model.AuctionStatus;
+import io.nightbeam.donutauction.model.HistoryView;
+import io.nightbeam.donutauction.model.TransactionPage;
+import io.nightbeam.donutauction.util.PriceDisplay;
 import io.nightbeam.donutauction.model.ListingPriceValidationResult;
 import io.nightbeam.donutauction.model.PendingSaleTransaction;
 import io.nightbeam.donutauction.storage.AuctionRepository;
@@ -379,6 +382,9 @@ public final class AuctionService {
                 noteSynced(soldListing.updatedAt());
                 listingSyncBus.publish(soldListing.auctionId(), ListingSyncAction.UPSERT);
                 deliverItem(buyer, soldListing.item());
+                // Best-effort bookkeeping is separate from settlement: failures never refund,
+                // release a sold row, re-deliver an item, or change the successful result.
+                recordCompletedPurchase(soldListing.auctionId(), buyerId);
                 settled.complete(ActionResult.success(msg(
                         "service.purchased",
                         "&aPurchased %item% for &6%price%&a.",
@@ -529,6 +535,36 @@ public final class AuctionService {
 
     public String formatPrice(double price) {
         return economyProvider.format(price);
+    }
+
+    public String formatDisplayPrice(double price) {
+        if (!plugin.getConfig().getBoolean("price-display.compact.enabled", false)) return economyProvider.format(price);
+        return PriceDisplay.compact(price, plugin.getConfig(), economyProvider::format, economyProvider.currencyName());
+    }
+
+    public String formatPrecisePrice(double price) {
+        return PriceDisplay.precise(price, plugin.getConfig(), economyProvider::format);
+    }
+
+    /** The caller supplies the authenticated player, never a requested owner's UUID. */
+    public CompletableFuture<TransactionPage> history(Player viewer, HistoryView view, int page) {
+        if (!viewer.hasPermission("donutauction.use") && !viewer.hasPermission("donutcore.auction.use")) {
+            return CompletableFuture.failedFuture(new SecurityException("Auction access denied"));
+        }
+        return repository.findHistory(viewer.getUniqueId(), view, page);
+    }
+
+    private void recordCompletedPurchase(UUID auctionId, UUID buyerId) {
+        try {
+            repository.markPurchaseCompleted(auctionId, buyerId).whenComplete((updated, failure) -> {
+                if (failure != null || !Boolean.TRUE.equals(updated)) {
+                    plugin.getLogger().warning("Purchase settled, but history completion could not be saved for "
+                            + auctionId + ". Payment and item delivery remain completed.");
+                }
+            });
+        } catch (RuntimeException exception) {
+            plugin.getLogger().warning("Purchase settled, but history completion could not be queued for " + auctionId);
+        }
     }
 
     public double getBalance(OfflinePlayer player) {

@@ -4,6 +4,8 @@ import io.nightbeam.donutauction.AuctionHousePlugin;
 import io.nightbeam.donutauction.hook.DonutCoreHook;
 import io.nightbeam.donutauction.model.AuctionFilterCategory;
 import io.nightbeam.donutauction.model.AuctionListing;
+import io.nightbeam.donutauction.model.HistoryView;
+import io.nightbeam.donutauction.model.ListingPriceValidationResult;
 import io.nightbeam.donutauction.model.PendingSaleTransaction;
 import io.nightbeam.donutauction.model.PlayerAuctionSession;
 import io.nightbeam.donutauction.model.PlayerPreference;
@@ -62,6 +64,17 @@ public final class GuiManager {
 
     public void openConfirmPurchase(Player player, AuctionListing listing) {
         open(player, new ConfirmPurchaseGui(this, auctionService, listing));
+    }
+
+    public void openHistory(Player player, HistoryView view, int page) {
+        if (!player.hasPermission("donutauction.use") && !player.hasPermission("donutcore.auction.use")) return;
+        HistoryGui gui = new HistoryGui(this, auctionService, player.getUniqueId(), view, page);
+        open(player, gui);
+        gui.load(player);
+    }
+
+    void refreshHistory(Player player, HistoryGui gui) {
+        if (player.isOnline() && player.getOpenInventory().getTopInventory().getHolder(false) == gui) open(player, gui);
     }
 
     public void openSellGui(Player player, SellGui sellGui) {
@@ -130,10 +143,23 @@ public final class GuiManager {
             return;
         }
 
+        ListingPriceValidationResult validation = ListingPriceValidationResult.validate(
+                price, auctionService.getMinListingPrice(), auctionService.getMaxListingPrice());
+        if (validation != ListingPriceValidationResult.VALID) {
+            if (validation == ListingPriceValidationResult.BELOW_MINIMUM) {
+                plugin.messages().sendFormatted(player, "service.price-below-min",
+                        "&cMinimum auction price is &6%min_price%&c.",
+                        "min_price", auctionService.formatPrice(auctionService.getMinListingPrice()));
+            } else {
+                plugin.messages().sendRaw(player, "command.invalid-price", "&cInvalid price.");
+            }
+            return;
+        }
+
         ItemStack ownedItem = itemInHand.clone();
         player.getInventory().setItemInMainHand(new ItemStack(Material.AIR));
 
-        double listingPrice = auctionService.clampListingPrice(price);
+        double listingPrice = price;
 
         PlayerPreference pref = preferenceManager.getCached(player.getUniqueId());
         boolean fastSell = pref != null && pref.fastSellEnabled() && player.hasPermission("donutauction.fastsell");

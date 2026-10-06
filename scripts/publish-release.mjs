@@ -6,6 +6,7 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { hashes, verifyModrinth, verifyCurseForge } from "./release-helpers.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const support = JSON.parse(
@@ -57,9 +58,64 @@ function resolveChangelog(ver) {
 
 const changelog = resolveChangelog(version);
 const jarName = path.basename(jar);
+const digest = hashes(fs.readFileSync(jar));
+if (!["both", "modrinth", "curseforge"].includes(platforms)) throw new Error("Invalid PLATFORMS");
+if (jarName !== `DonutAuctionHouse-${version}.jar`) throw new Error("Artifact filename/version mismatch");
+
+async function json(url, headers = {}) {
+  const response = await fetch(url, { headers });
+  if (!response.ok) throw new Error(`Preflight/read failed (${response.status}) for ${url}`);
+  return response.json();
+}
+
+const mrHeaders = { Authorization: process.env.MODRINTH_TOKEN || "", "User-Agent": "NightBeam-DonutAuctionHouse-release" };
+const cfHeaders = { "x-api-key": process.env.CURSEFORGE_API_KEY || "" };
 
 (async () => {
+  // Validate both existing destinations before the first upload. No listings are created.
+  let existingMr;
+  let existingCf;
   if (doModrinth) {
+    if (!process.env.MODRINTH_TOKEN || process.env.MODRINTH_ID !== "8XgyeSRH") throw new Error("Missing Modrinth authentication or unexpected project ID");
+    const project = await json(`https://api.modrinth.com/v2/project/${process.env.MODRINTH_ID}`, mrHeaders);
+    if (project.id !== "8XgyeSRH" || project.source_url !== "https://github.com/MeherBenSalem/DonutAuction") throw new Error("Modrinth project identity mismatch");
+    const team = await json(`https://api.modrinth.com/v2/team/${project.team}/members`, mrHeaders);
+    const user = await json("https://api.modrinth.com/v2/user", mrHeaders);
+    if (!team.some(member => member.user.id === user.id)) throw new Error("Authenticated Modrinth user is not on the project team");
+    const availableVersions = await json("https://api.modrinth.com/v2/tag/game_version", mrHeaders);
+    const availableLoaders = await json("https://api.modrinth.com/v2/tag/loader", mrHeaders);
+    if (!gameVersions.every(version => availableVersions.some(tag => tag.version === version))
+        || !loaders.every(loader => availableLoaders.some(tag => tag.name === loader))) throw new Error("Modrinth cannot tag the full supported version/loader matrix");
+    const versions = await json(`https://api.modrinth.com/v2/project/${project.id}/version`, mrHeaders);
+    existingMr = versions.find(entry => entry.version_number === version);
+    if (existingMr) verifyModrinth(existingMr, project.id, version, support, digest);
+    console.log("Modrinth preflight", project.id, project.slug, user.username, existingMr ? "already uploaded" : "new version");
+  }
+  if (doCurse) {
+    if (!process.env.CURSEFORGE_TOKEN || !process.env.CURSEFORGE_API_KEY || process.env.CURSEFORGE_ID !== "1479926") throw new Error("Missing CurseForge authentication or unexpected project ID");
+    const project = (await json(`https://api.curseforge.com/v1/mods/${process.env.CURSEFORGE_ID}`, cfHeaders)).data;
+    console.log("CurseForge target", project.id, project.name, project.slug, project.authors.map(author => author.name).join(","));
+    if (project.id !== 1479926 || !/donut.*auction/i.test(project.name)
+        || !project.authors.some(author => /^(naizo|meherbensalem)$/i.test(author.name))) throw new Error("CurseForge project identity/owner mismatch");
+    const availableVersions = (await json("https://api.curseforge.com/v1/games/432/versions", cfHeaders)).data.flatMap(type => type.versions);
+    if (![...gameVersions, "Client", "Server"].every(version => availableVersions.includes(version))) throw new Error("CurseForge cannot tag the full supported version/environment matrix");
+    console.log("CurseForge loader tag availability", loaders.map(loader => `${loader}:${availableVersions.some(tag => tag.toLowerCase() === loader)}`).join(" "));
+    const files = (await json(`https://api.curseforge.com/v1/mods/${project.id}/files?pageSize=50`, cfHeaders)).data;
+    existingCf = files.find(entry => entry.fileName === jarName || entry.displayName === version);
+    const recovery = path.join(process.env.RECOVERY_RECEIPTS || "recovery-receipts", "curseforge-upload-receipt.json");
+    if (!existingCf && fs.existsSync(recovery)) {
+      const prior = JSON.parse(fs.readFileSync(recovery, "utf8"));
+      if (prior.project_id !== process.env.CURSEFORGE_ID || prior.version !== version || prior.sha256 !== digest.sha256) throw new Error("Recovery receipt belongs to a different release");
+      const acceptedId = prior.upload.id ?? prior.upload.data?.id;
+      console.log("Previously accepted CurseForge file", acceptedId, "- verifying; no duplicate upload will be attempted");
+      existingCf = (await json(`https://api.curseforge.com/v1/mods/${project.id}/files/${acceptedId}`, cfHeaders)).data;
+    }
+    if (existingCf) verifyCurseForge(existingCf, process.env.CURSEFORGE_ID, version, support, digest);
+    console.log("CurseForge preflight", project.id, project.slug, project.authors.map(author => author.name).join(","), existingCf ? "already uploaded" : "new version");
+  }
+  console.log("Artifact SHA256", digest.sha256);
+  if (process.env.PREFLIGHT_ONLY === "true") return;
+  if (doModrinth && !existingMr) {
     if (!process.env.MODRINTH_TOKEN || !process.env.MODRINTH_ID) {
       throw new Error("MODRINTH_TOKEN and MODRINTH_ID are required");
     }
@@ -87,12 +143,15 @@ const jarName = path.basename(jar);
     });
     const mrText = await mrRes.text();
     if (!mrRes.ok) throw new Error("Modrinth " + mrRes.status + " " + mrText.slice(0, 500));
-    console.log("Modrinth OK", version, loaders.join("+"), gameVersions.length, "MC versions");
+    const receipt = JSON.parse(mrText);
+    verifyModrinth(receipt, process.env.MODRINTH_ID, version, support, digest);
+    fs.writeFileSync("modrinth-receipt.json", JSON.stringify(receipt, null, 2));
+    console.log("Modrinth OK", receipt.id, version, loaders.join("+"), gameVersions.length, "MC versions");
   } else {
     console.log("Skipping Modrinth");
   }
 
-  if (!doCurse) {
+  if (!doCurse || existingCf) {
     console.log("Skipping CurseForge");
     return;
   }
@@ -117,7 +176,15 @@ const jarName = path.basename(jar);
   );
   const cfText = await cfRes.text();
   if (!cfRes.ok) throw new Error("CurseForge " + cfRes.status + " " + cfText.slice(0, 500));
-  console.log("CurseForge OK", version, gameVersionNames.length, "tags", jarName);
+  const uploaded = JSON.parse(cfText);
+  fs.writeFileSync("curseforge-upload-receipt.json", JSON.stringify({ project_id: process.env.CURSEFORGE_ID, version, sha256: digest.sha256, upload: uploaded }, null, 2));
+  const fileId = uploaded.id ?? uploaded.data?.id;
+  if (!fileId) throw new Error("CurseForge upload succeeded but returned no file ID; inspect receipt before retrying");
+  console.log("CurseForge upload accepted", process.env.CURSEFORGE_ID, fileId, version, jarName);
+  const receipt = (await json(`https://api.curseforge.com/v1/mods/${process.env.CURSEFORGE_ID}/files/${fileId}`, cfHeaders)).data;
+  verifyCurseForge(receipt, process.env.CURSEFORGE_ID, version, support, digest);
+  fs.writeFileSync("curseforge-receipt.json", JSON.stringify(receipt, null, 2));
+  console.log("CurseForge verified", receipt.id, "status", receipt.fileStatus, "SHA1", digest.sha1);
 })().catch((e) => {
   console.error(e);
   process.exit(1);

@@ -6,6 +6,9 @@ public enum ListingPriceValidationResult {
     INVALID_OR_ABOVE_MAX;
 
     public static ListingPriceValidationResult validate(double price, double minPrice, double maxPrice) {
+        if (!Double.isFinite(price) || !Double.isFinite(minPrice) || !Double.isFinite(maxPrice)) {
+            return INVALID_OR_ABOVE_MAX;
+        }
         double effectiveMinPrice = Math.max(0.0D, minPrice);
 
         if (price < effectiveMinPrice) {

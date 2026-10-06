@@ -103,7 +103,7 @@ public final class SellGui extends BaseGui {
 
         String step = auctionService.formatPrice(priceStep(price));
         String durationLabel = messages().durationLabel(DURATION_OPTIONS[selectedDurationIndex]);
-        String formattedPrice = auctionService.formatPrice(price);
+        String formattedPrice = auctionService.formatPrecisePrice(price);
 
         inventory.setItem(PRICE_DECREASE_SLOT, ItemBuilder.of(Material.RED_STAINED_GLASS_PANE)
                 .name(messages().component("gui.sell.decrease-price", "Decrease Price"))

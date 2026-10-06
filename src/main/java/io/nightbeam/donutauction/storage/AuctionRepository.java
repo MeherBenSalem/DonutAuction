@@ -1,6 +1,8 @@
 package io.nightbeam.donutauction.storage;
 
 import io.nightbeam.donutauction.model.AuctionListing;
+import io.nightbeam.donutauction.model.HistoryView;
+import io.nightbeam.donutauction.model.TransactionPage;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -28,6 +30,12 @@ public interface AuctionRepository {
      * Reverts a SOLD row back to ACTIVE when Vault fails after a successful claim.
      */
     CompletableFuture<Boolean> releaseClaim(UUID auctionId, UUID buyerId, long updatedAt);
+
+    /** History bookkeeping after payment and delivery; cannot claim or settle an auction. */
+    CompletableFuture<Boolean> markPurchaseCompleted(UUID auctionId, UUID buyerId);
+
+    /** Only completed transactions belonging to this authenticated viewer, paginated in SQL. */
+    CompletableFuture<TransactionPage> findHistory(UUID viewer, HistoryView view, int page);
 
     /**
      * Atomically cancels an ACTIVE listing. Returns {@code true} when this caller won the row.

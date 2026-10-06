@@ -55,7 +55,7 @@ public final class ConfirmPurchaseGui extends BaseGui {
         ItemStack displayItem = listing.item().clone();
         OfflinePlayer seller = Bukkit.getOfflinePlayer(listing.seller());
         String sellerName = seller.getName() == null ? messages().unknownSeller() : seller.getName();
-        String formattedPrice = auctionService.formatPrice(listing.price());
+        String formattedPrice = auctionService.formatPrecisePrice(listing.price());
         String balance = auctionService.formatPrice(auctionService.getBalance(player));
 
         displayItem.editMeta(meta -> {

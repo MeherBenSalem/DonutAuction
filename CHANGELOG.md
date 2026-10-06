@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.6.0
+
+- Optional locale-aware k/M price display; existing provider formatting remains the default and exact amounts remain visible in confirmations.
+- Private, paginated Bought/Sold history via the auction browser book; completed transactions only, with service/query ownership checks and asynchronous database reads.
+- Additive completion flag in existing auction storage preserves legacy SOLD rows and excludes new unsettled claims; history writes do not alter settlement.
+- Reject non-finite/out-of-range sell prices before taking the held item; retain alias/confirmation/fast-sell regression coverage. The customer-specific browser-opening report remains unresolved.
+- Portable database index initialization and visible migration failures.
+- Java 17/21, native SQLite/MySQL, GUI events, monetary precision and release receipt checks; immutable artifacts and guarded partial-upload recovery.
+
 ## 1.5.2
 
 - Browse GUI previous-page arrow restored at slot 46 (sell held item stays at 45; next page stays at 53)

@@ -2,6 +2,8 @@ package io.nightbeam.donutauction.storage;
 
 import io.nightbeam.donutauction.model.AuctionListing;
 import io.nightbeam.donutauction.model.AuctionStatus;
+import io.nightbeam.donutauction.model.HistoryView;
+import io.nightbeam.donutauction.model.TransactionPage;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -136,5 +138,15 @@ public final class InMemoryAuctionRepository implements AuctionRepository {
         return CompletableFuture.completedFuture(listings.values().stream()
                 .filter(listing -> listing.status() == AuctionStatus.ACTIVE && listing.expirationTime() <= cutoffTime)
                 .toList());
+    }
+
+    @Override
+    public CompletableFuture<Boolean> markPurchaseCompleted(UUID auctionId, UUID buyerId) {
+        return CompletableFuture.completedFuture(true);
+    }
+
+    @Override
+    public CompletableFuture<TransactionPage> findHistory(UUID viewer, HistoryView view, int page) {
+        return CompletableFuture.completedFuture(new TransactionPage(viewer, view, List.of(), 1, 1, 0));
     }
 }

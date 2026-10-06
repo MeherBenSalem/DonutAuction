@@ -33,6 +33,7 @@ public final class AuctionGui extends BaseGui {
     static final int SELL_HELD_SLOT = 45;
     static final int PREVIOUS_PAGE_SLOT = 46;
     static final int NEXT_PAGE_SLOT = 53;
+    static final int HISTORY_SLOT = 52;
 
     private final GuiManager guiManager;
     private final AuctionService auctionService;
@@ -115,6 +116,11 @@ public final class AuctionGui extends BaseGui {
                 .lore(messages().component("gui.auction.your-items-lore", "View active, sold, and expired listings"))
                 .build());
 
+        inventory.setItem(HISTORY_SLOT, ItemBuilder.of(Material.BOOK)
+                .name(messages().component("gui.history.entry", "Transaction History"))
+                .lore(messages().component("gui.history.entry-lore", "View your completed purchases and sales"))
+                .build());
+
         inventory.setItem(SELL_HELD_SLOT, ItemBuilder.of(Material.EMERALD)
                 .name(messages().component("gui.auction.sell-held-item", "Sell Held Item"))
                 .lore(
@@ -159,6 +165,10 @@ public final class AuctionGui extends BaseGui {
         }
 
         int slot = event.getSlot();
+        if (slot == HISTORY_SLOT) {
+            guiManager.openHistory(player, io.nightbeam.donutauction.model.HistoryView.BOUGHT, 1);
+            return;
+        }
         if (slotMappings.containsKey(slot)) {
             UUID auctionId = slotMappings.get(slot);
             AuctionListing listing = auctionService.findListing(auctionId).orElse(null);
@@ -251,7 +261,7 @@ public final class AuctionGui extends BaseGui {
         auctionLore.add(messages().component(
                 "gui.listing-lore.price",
                 "&7Price: %price%",
-                "price", auctionService.formatPrice(listing.price())));
+                "price", auctionService.formatDisplayPrice(listing.price())));
         auctionLore.add(messages().component(
                 "gui.listing-lore.seller",
                 "&7Seller: %seller%",
