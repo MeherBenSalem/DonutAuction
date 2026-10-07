@@ -306,11 +306,12 @@ jobs:
             }
             if (!response.ok) throw new Error(`CurseForge verification read failed ${response.status}`);
             const cf = (await response.json()).data;
+            if ([2, 5, 6, 7, 8, 12, 15].includes(cf.fileStatus)) throw new Error(`CurseForge requires action: file status ${cf.fileStatus}`);
+            console.log("CurseForge accepted file", cf.id, "status", cf.fileStatus, "available", cf.isAvailable);
+            if (!cf.isAvailable || ![4, 10].includes(cf.fileStatus)) { await delay(60000); continue; }
             verifyCurseForge(cf, "1479926", version, support, digest);
             if (!["Client", "Server"].every(tag => cf.gameVersions.includes(tag))) throw new Error("CurseForge environment tags missing");
-            if ([2, 5, 6, 7, 15].includes(cf.fileStatus)) throw new Error(`CurseForge requires action: file status ${cf.fileStatus}`);
-            console.log("CurseForge file metadata/hash verified", cf.id, "status", cf.fileStatus, "available", cf.isAvailable);
-            if (cf.isAvailable && [4, 10].includes(cf.fileStatus) && cf.downloadUrl && await publicDownload(cf.downloadUrl)) {
+            if (cf.downloadUrl && await publicDownload(cf.downloadUrl)) {
               fs.writeFileSync("public-verification-receipt.json", JSON.stringify({
                 checked_at: new Date().toISOString(), source_commit: prior.source_commit,
                 version, hashes: digest, modrinth: mr, curseforge: cf
