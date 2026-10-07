@@ -39,7 +39,7 @@ concurrency:
 
 jobs:
   publish:
-    if: ${{ github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_sha == '563915562309c1b80acc5fad7a7f91a66df96253' && github.event.workflow_run.head_repository.full_name == 'MeherBenSalem/DonutAuction') }}
+    if: ${{ github.event_name != 'workflow_run' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -227,6 +227,106 @@ jobs:
         with:
           name: publication-receipts-${{ steps.ver.outputs.version }}
           path: '*receipt.json'
+          if-no-files-found: ignore
+          retention-days: 90
+
+  verify_publication:
+    if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_sha == '563915562309c1b80acc5fad7a7f91a66df96253' && github.event.workflow_run.head_repository.full_name == 'MeherBenSalem/DonutAuction' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 563915562309c1b80acc5fad7a7f91a66df96253
+      - uses: actions/download-artifact@v4
+        with:
+          name: DonutAuctionHouse-1.6.0
+          path: verified-artifact
+          run-id: 37631403342
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: publication-receipts-1.6.0
+          path: original-receipts
+          run-id: 37631403342
+          github-token: ${{ github.token }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Verify both public downloads without creating another upload
+        env:
+          CURSEFORGE_API_KEY: ${{ secrets.CURSEFORGE_API_KEY }}
+        run: |
+          node --input-type=module - <<'JS'
+          import fs from "node:fs";
+          import { setTimeout as delay } from "node:timers/promises";
+          import { hashes, verifyModrinth, verifyCurseForge, verifyCurseForgeProject } from "./scripts/release-helpers.mjs";
+          const version = "1.6.0";
+          const bytes = fs.readFileSync("verified-artifact/DonutAuctionHouse-1.6.0.jar");
+          const digest = hashes(bytes);
+          const prior = JSON.parse(fs.readFileSync("original-receipts/release-provenance-receipt.json", "utf8"));
+          const accepted = JSON.parse(fs.readFileSync("original-receipts/curseforge-upload-receipt.json", "utf8"));
+          if (prior.source_commit !== "563915562309c1b80acc5fad7a7f91a66df96253" || prior.version !== version
+              || prior.hashes.sha256 !== digest.sha256 || digest.sha256 !== "8bebbd29635de79214bf8794d59423badaea648e6aaf5e038c1f5e6bb3348814"
+              || accepted.project_id !== "1479926" || accepted.upload.id !== 9089309 || accepted.sha256 !== digest.sha256) {
+            throw new Error("Publication proof does not match the accepted immutable release");
+          }
+          const support = prior.support;
+          async function json(url, headers = {}) {
+            const response = await fetch(url, { headers });
+            if (!response.ok) throw new Error(`Read failed ${response.status}: ${url}`);
+            return response.json();
+          }
+          async function publicDownload(url) {
+            const target = new URL(url);
+            if (target.protocol !== "https:" || !(target.hostname === "cdn.modrinth.com" || target.hostname.endsWith(".forgecdn.net"))) {
+              throw new Error("Unexpected public release download destination");
+            }
+            const response = await fetch(url);
+            if (!response.ok) return false;
+            if (hashes(Buffer.from(await response.arrayBuffer())).sha256 !== digest.sha256) {
+              throw new Error("Public download bytes do not match the immutable release");
+            }
+            return true;
+          }
+          const mr = await json("https://api.modrinth.com/v2/version/xFhXuWyO");
+          verifyModrinth(mr, "8XgyeSRH", version, support, digest);
+          if (!await publicDownload(mr.files.find(file => file.primary).url)) throw new Error("Modrinth public download unavailable");
+          console.log("Modrinth public metadata and SHA256 verified", mr.id, digest.sha256);
+          const cfHeaders = { "x-api-key": process.env.CURSEFORGE_API_KEY };
+          verifyCurseForgeProject((await json("https://api.curseforge.com/v1/mods/1479926", cfHeaders)).data);
+          for (;;) {
+            const response = await fetch("https://api.curseforge.com/v1/mods/1479926/files/9089309", { headers: cfHeaders });
+            if (response.status === 404 || response.status >= 500) {
+              console.log("CurseForge accepted file 9089309 is not public in the API yet", response.status);
+              await delay(60000); continue;
+            }
+            if (!response.ok) throw new Error(`CurseForge verification read failed ${response.status}`);
+            const cf = (await response.json()).data;
+            verifyCurseForge(cf, "1479926", version, support, digest);
+            if (!["Client", "Server"].every(tag => cf.gameVersions.includes(tag))) throw new Error("CurseForge environment tags missing");
+            if ([2, 5, 6, 7, 15].includes(cf.fileStatus)) throw new Error(`CurseForge requires action: file status ${cf.fileStatus}`);
+            console.log("CurseForge file metadata/hash verified", cf.id, "status", cf.fileStatus, "available", cf.isAvailable);
+            if (cf.isAvailable && [4, 10].includes(cf.fileStatus) && cf.downloadUrl && await publicDownload(cf.downloadUrl)) {
+              fs.writeFileSync("public-verification-receipt.json", JSON.stringify({
+                checked_at: new Date().toISOString(), source_commit: prior.source_commit,
+                version, hashes: digest, modrinth: mr, curseforge: cf
+              }, null, 2));
+              console.log("BOTH PUBLIC RELEASE DOWNLOADS VERIFIED", digest.sha256);
+              break;
+            }
+            await delay(60000);
+          }
+          JS
+      - name: Preserve public verification proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-verification-1.6.0
+          path: public-verification-receipt.json
           if-no-files-found: ignore
           retention-days: 90
 
