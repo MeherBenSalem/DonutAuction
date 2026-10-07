@@ -51,12 +51,20 @@ jobs:
         with:
           script: |
             const sourceSha = context.payload.workflow_run?.head_sha || context.sha;
-            const runs = await github.paginate(github.rest.actions.listWorkflowRuns, {
-              ...context.repo, workflow_id: "ci.yml", head_sha: sourceSha, status: "success", per_page: 100
-            });
-            const run = runs.find(candidate => candidate.head_sha === sourceSha && candidate.conclusion === "success"
-              && candidate.head_repository?.full_name === "MeherBenSalem/DonutAuction");
-            if (!run) throw new Error("No successful full CI for this exact source commit");
+            let run;
+            if (context.payload.workflow_run) {
+              ({ data: run } = await github.rest.actions.getWorkflowRun({ ...context.repo, run_id: context.payload.workflow_run.id }));
+            } else {
+              const runs = await github.paginate(github.rest.actions.listWorkflowRunsForRepo, {
+                ...context.repo, head_sha: sourceSha, status: "success", per_page: 100
+              });
+              const candidate = runs.find(item => item.head_sha === sourceSha && item.path === ".github/workflows/ci.yml" && item.conclusion === "success");
+              if (candidate) ({ data: run } = await github.rest.actions.getWorkflowRun({ ...context.repo, run_id: candidate.id }));
+            }
+            if (!run || run.head_sha !== sourceSha || run.path !== ".github/workflows/ci.yml"
+                || run.conclusion !== "success" || run.head_repository?.full_name !== "MeherBenSalem/DonutAuction") {
+              throw new Error("No successful full CI for this exact source commit");
+            }
             const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {
               ...context.repo, run_id: run.id, filter: "latest", per_page: 100
             });
