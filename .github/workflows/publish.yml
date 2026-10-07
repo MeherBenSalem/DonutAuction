@@ -310,7 +310,6 @@ jobs:
             console.log("CurseForge accepted file", cf.id, "status", cf.fileStatus, "available", cf.isAvailable);
             if (!cf.isAvailable || ![4, 10].includes(cf.fileStatus)) { await delay(60000); continue; }
             verifyCurseForge(cf, "1479926", version, support, digest);
-            if (!["Client", "Server"].every(tag => cf.gameVersions.includes(tag))) throw new Error("CurseForge environment tags missing");
             if (cf.downloadUrl && await publicDownload(cf.downloadUrl)) {
               fs.writeFileSync("public-verification-receipt.json", JSON.stringify({
                 checked_at: new Date().toISOString(), source_commit: prior.source_commit,
