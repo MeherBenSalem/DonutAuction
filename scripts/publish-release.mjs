@@ -6,7 +6,7 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { hashes, verifyModrinth, verifyCurseForge } from "./release-helpers.mjs";
+import { hashes, verifyModrinth, verifyCurseForge, verifyCurseForgeProject } from "./release-helpers.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const support = JSON.parse(
@@ -95,8 +95,7 @@ const cfHeaders = { "x-api-key": process.env.CURSEFORGE_API_KEY || "" };
     if (!process.env.CURSEFORGE_TOKEN || !process.env.CURSEFORGE_API_KEY || process.env.CURSEFORGE_ID !== "1479926") throw new Error("Missing CurseForge authentication or unexpected project ID");
     const project = (await json(`https://api.curseforge.com/v1/mods/${process.env.CURSEFORGE_ID}`, cfHeaders)).data;
     console.log("CurseForge target", project.id, project.name, project.slug, project.authors.map(author => author.name).join(","));
-    if (project.id !== 1479926 || !/donut.*auction/i.test(project.name)
-        || !project.authors.some(author => /^(naizo|meherbensalem)$/i.test(author.name))) throw new Error("CurseForge project identity/owner mismatch");
+    verifyCurseForgeProject(project);
     const availableVersions = (await json("https://api.curseforge.com/v1/games/432/versions", cfHeaders)).data.flatMap(type => type.versions);
     if (![...gameVersions, "Client", "Server"].every(version => availableVersions.includes(version))) throw new Error("CurseForge cannot tag the full supported version/environment matrix");
     console.log("CurseForge loader tag availability", loaders.map(loader => `${loader}:${availableVersions.some(tag => tag.toLowerCase() === loader)}`).join(" "));

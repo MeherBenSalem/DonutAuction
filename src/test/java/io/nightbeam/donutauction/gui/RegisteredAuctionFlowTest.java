@@ -272,7 +272,8 @@ class RegisteredAuctionFlowTest {
         assertTrue(lore(buyer, 0).contains("Seller"));
         click(buyer, 0); click(buyer, 0); pump();
         verify(economy, times(1)).withdraw(any(), anyDouble());
-        assertEquals(0, service.history(server.addPlayer("Unrelated"), HistoryView.BOUGHT, 1).handle((p, e) -> p == null ? 0L : p.totalResults()).get());
+        var unrelated = server.addPlayer("Unrelated"); permit(unrelated, true);
+        assertEquals(0, service.history(unrelated, HistoryView.BOUGHT, 1).get().totalResults());
     }
 
     @Test void failedWithdrawalHasNoHistoryOrItemDelivery() throws Exception {
@@ -387,5 +388,119 @@ class RegisteredAuctionFlowTest {
         when(economy.currencyName()).thenThrow(new UnsupportedOperationException("unsupported currency names"));
         assertEquals("$1000000.125", service.formatDisplayPrice(1000000.125));
         verify(economy, never()).currencyName();
+    }
+
+    @ParameterizedTest @ValueSource(booleans = {false, true})
+    void browseAndYourItemsUseDisplayPriceWhileConfirmationRetainsAllDigits(boolean compact) throws Exception {
+        var listing = listing(1234.567); repository.save(listing).get(); cache.upsert(listing);
+        config.set("price-display.compact.enabled", compact);
+        when(economy.format(anyDouble())).thenReturn("$1234.57");
+        String expectedDisplay = compact ? "1.2k coins" : "$1234.57";
+        gui.openAuctionHouse(seller);
+        assertTrue(lore(seller, 0).contains(expectedDisplay));
+        gui.openPlayerItems(seller);
+        assertTrue(lore(seller, 0).contains(expectedDisplay));
+        var buyer = server.addPlayer("Buyer"); permit(buyer, true);
+        gui.openConfirmPurchase(buyer, listing);
+        assertTrue(lore(buyer, 30).contains("$1234.57 (1234.567)"));
+        assertEquals(1234.567, repository.findById(listing.auctionId()).get().orElseThrow().price());
+        verify(economy, never()).withdraw(any(), anyDouble());
+        verify(economy, never()).deposit(any(), anyDouble());
+    }
+
+    @Test void failedSellerPaymentRefundsBuyerAndDoesNotCreateHistoryOrDeliverItem() throws Exception {
+        var listing = listing(100.125); repository.save(listing).get(); cache.upsert(listing);
+        var buyer = server.addPlayer("Buyer"); permit(buyer, true);
+        when(economy.deposit(any(), anyDouble())).thenReturn(
+                new EconomyResponse(0, 0, EconomyResponse.ResponseType.FAILURE, "seller unavailable"),
+                new EconomyResponse(100.125, 100.125, EconomyResponse.ResponseType.SUCCESS, ""));
+        var result = service.purchaseAuction(buyer, listing.auctionId()); await(result::isDone);
+        assertFalse(result.get().success());
+        assertEquals(AuctionStatus.ACTIVE, repository.findById(listing.auctionId()).get().orElseThrow().status());
+        assertEquals(0, service.history(buyer, HistoryView.BOUGHT, 1).get().totalResults());
+        assertEquals(0, service.history(seller, HistoryView.SOLD, 1).get().totalResults());
+        assertTrue(buyer.getInventory().all(Material.EMERALD).isEmpty());
+        verify(economy, times(1)).withdraw(argThat(player -> player.getUniqueId().equals(buyer.getUniqueId())), eq(100.125));
+        verify(economy, times(1)).deposit(argThat(player -> player.getUniqueId().equals(seller.getUniqueId())), eq(100.125));
+        verify(economy, times(1)).deposit(argThat(player -> player.getUniqueId().equals(buyer.getUniqueId())), eq(100.125));
+        verify(repository, never()).markPurchaseCompleted(any(), any());
+    }
+
+    @Test void synchronouslyRejectedHistoryBookkeepingCannotUndoSettlement() throws Exception {
+        doThrow(new RejectedExecutionException("executor stopped")).when(repository).markPurchaseCompleted(any(), any());
+        var listing = listing(100); repository.save(listing).get(); cache.upsert(listing);
+        var buyer = server.addPlayer("Buyer"); permit(buyer, true);
+        var result = service.purchaseAuction(buyer, listing.auctionId()); await(result::isDone);
+        assertTrue(result.get().success());
+        assertEquals(AuctionStatus.SOLD, repository.findById(listing.auctionId()).get().orElseThrow().status());
+        assertEquals(2, buyer.getInventory().all(Material.EMERALD).values().stream().mapToInt(ItemStack::getAmount).sum());
+        assertEquals(0, service.history(buyer, HistoryView.BOUGHT, 1).get().totalResults());
+        verify(repository, never()).releaseClaim(any(), any(), anyLong());
+        verify(economy, times(1)).withdraw(any(), eq(100.0));
+        verify(economy, times(1)).deposit(any(), eq(100.0));
+    }
+
+    @Test void delayedHistoryResponseAfterCloseCannotReopenTheMenu() {
+        var response = new CompletableFuture<TransactionPage>();
+        doReturn(response).when(repository).findHistory(any(), any(), anyInt());
+        gui.openHistory(seller, HistoryView.BOUGHT, 1);
+        seller.closeInventory();
+        response.complete(new TransactionPage(seller.getUniqueId(), HistoryView.BOUGHT, List.of(), 1, 1, 0));
+        pump();
+        assertFalse(seller.getOpenInventory().getTopInventory().getHolder() instanceof HistoryGui);
+    }
+
+    @Test void delayedHistoryResponseForAnOfflineViewerDoesNotRefreshTheMenu() {
+        var response = new CompletableFuture<TransactionPage>();
+        doReturn(response).when(repository).findHistory(any(), any(), anyInt());
+        var viewer = spy(seller);
+        gui.openHistory(viewer, HistoryView.BOUGHT, 1);
+        var loading = viewer.getOpenInventory().getTopInventory();
+        doReturn(false).when(viewer).isOnline();
+        response.complete(new TransactionPage(viewer.getUniqueId(), HistoryView.BOUGHT, List.of(), 1, 1, 0));
+        pump();
+        assertSame(loading, viewer.getOpenInventory().getTopInventory());
+        assertEquals(plugin.messages().component("gui.history.loading", "Loading history..."),
+                loading.getItem(22).getItemMeta().displayName());
+    }
+
+    @Test void deniedHistoryAccessDoesNotQueryStorageOrReplaceTheCurrentInventory() throws Exception {
+        permit(seller, false);
+        var initial = seller.getOpenInventory().getTopInventory();
+        gui.openHistory(seller, HistoryView.BOUGHT, 1);
+        assertSame(initial, seller.getOpenInventory().getTopInventory());
+        assertThrows(ExecutionException.class, () -> service.history(seller, HistoryView.SOLD, 1).get());
+        verify(repository, never()).findHistory(any(), any(), anyInt());
+    }
+
+    @Test void wrongHistoryTabResponseDoesNotRenderAnyRecords() {
+        var response = new CompletableFuture<TransactionPage>();
+        doReturn(response).when(repository).findHistory(any(), any(), anyInt());
+        gui.openHistory(seller, HistoryView.BOUGHT, 1);
+        response.complete(new TransactionPage(seller.getUniqueId(), HistoryView.SOLD,
+                List.of(new TransactionRecord(UUID.randomUUID(), "unavailable-metadata", 100, 1000, UUID.randomUUID())), 1, 1, 1));
+        pump();
+        assertNull(seller.getOpenInventory().getTopInventory().getItem(0));
+        assertEquals(plugin.messages().component("gui.history.error", "Unable to load history. Click Refresh to retry."),
+                seller.getOpenInventory().getTopInventory().getItem(22).getItemMeta().displayName());
+    }
+
+    @Test void historyRefreshIncludesANewCompletedPurchaseWithoutRepeatingSettlement() throws Exception {
+        var buyer = server.addPlayer("Buyer"); permit(buyer, true);
+        gui.openHistory(buyer, HistoryView.BOUGHT, 1);
+        await(() -> buyer.getOpenInventory().getTopInventory().getItem(22).getItemMeta().displayName()
+                .equals(plugin.messages().component("gui.history.empty", "No completed transactions")));
+        var listing = listing(100.125); repository.save(listing).get(); cache.upsert(listing);
+        var result = service.purchaseAuction(buyer, listing.auctionId()); await(result::isDone);
+        repository.findHistory(buyer.getUniqueId(), HistoryView.BOUGHT, 1).get();
+        assertNull(buyer.getOpenInventory().getTopInventory().getItem(0));
+        click(buyer, 49);
+        await(() -> buyer.getOpenInventory().getTopInventory().getItem(0) != null);
+        assertTrue(lore(buyer, 0).contains(listing.auctionId().toString()));
+        assertTrue(lore(buyer, 0).contains("100.125"));
+        click(buyer, 0); click(buyer, 0); pump();
+        verify(economy, times(1)).withdraw(any(), eq(100.125));
+        verify(economy, times(1)).deposit(any(), eq(100.125));
+        assertEquals(2, buyer.getInventory().all(Material.EMERALD).values().stream().mapToInt(ItemStack::getAmount).sum());
     }
 }
