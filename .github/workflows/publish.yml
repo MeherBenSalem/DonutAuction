@@ -66,11 +66,11 @@ jobs:
               throw new Error("No successful full CI for this exact source commit");
             }
             const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {
-              ...context.repo, run_id: run.id, filter: "latest", per_page: 100
+              ...context.repo, run_id: run.id, filter: "all", per_page: 100
             });
             const requiredSteps = ["Run mvn -B -q test", "Native MySQL history, row claims and legacy schema migration", "Run node --test scripts/release-helpers.test.mjs"];
             for (const name of ["test (17)", "test (21)"]) {
-              const job = jobs.find(candidate => candidate.name === name);
+              const job = jobs.filter(candidate => candidate.name === name).sort((a, b) => b.id - a.id)[0];
               if (!job || job.conclusion !== "success" || !requiredSteps.every(name => job.steps.some(step => step.name === name && step.conclusion === "success"))) {
                 throw new Error("Java 17/21, native MySQL and release-helper CI must all pass");
               }
