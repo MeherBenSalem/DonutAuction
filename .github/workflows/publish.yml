@@ -71,8 +71,8 @@ jobs:
             if (recoveryRunId) {
               if (!/^[0-9]+$/.test(recoveryRunId)) throw new Error("Invalid artifact recovery run ID");
               const { data: previous } = await github.rest.actions.getWorkflowRun({ ...context.repo, run_id: Number(recoveryRunId) });
-              if (previous.head_sha !== sourceSha || previous.name !== "Publish") {
-                throw new Error("Recovery artifact must belong to this exact release source commit");
+              if (previous.name !== "Publish") {
+                throw new Error("Recovery artifact must belong to this repository publication workflow");
               }
             }
             core.setOutput("source_sha", sourceSha);
@@ -135,6 +135,24 @@ jobs:
           merge-multiple: true
           run-id: ${{ inputs.artifact_run_id }}
           github-token: ${{ github.token }}
+
+      - name: Verify recovered artifact source and immutable hash
+        if: ${{ inputs.artifact_run_id != '' }}
+        env:
+          SOURCE_COMMIT: ${{ steps.ci.outputs.source_sha }}
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          node --input-type=module - <<'JS'
+          import fs from "node:fs";
+          import { hashes } from "./scripts/release-helpers.mjs";
+          const previous = JSON.parse(fs.readFileSync("recovery-receipts/release-provenance-receipt.json", "utf8"));
+          const filename = `DonutAuctionHouse-${process.env.VERSION}.jar`;
+          const digest = hashes(fs.readFileSync(`target/${filename}`));
+          if (previous.source_commit !== process.env.SOURCE_COMMIT || previous.version !== process.env.VERSION
+              || previous.filename !== filename || previous.hashes?.sha512 !== digest.sha512 || previous.hashes?.sha256 !== digest.sha256) {
+            throw new Error("Recovered artifact does not match the exact checked source commit and original hashes");
+          }
+          JS
 
       - name: Locate jar
         id: jar
@@ -203,3 +221,4 @@ jobs:
           path: '*receipt.json'
           if-no-files-found: ignore
           retention-days: 90
+
