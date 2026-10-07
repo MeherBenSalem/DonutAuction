@@ -8,6 +8,11 @@
 name: Publish
 
 on:
+  # Temporary opt-in for the explicitly authorized 1.6.0 release only.
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
   push:
     tags:
       - "v*.*.*"
@@ -29,30 +34,76 @@ on:
         required: false
 
 concurrency:
-  group: donutauction-publish-${{ github.event.inputs.version || github.ref_name }}
+  group: donutauction-publish
   cancel-in-progress: false
 
 jobs:
   publish:
+    if: ${{ github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_sha == '563915562309c1b80acc5fad7a7f91a66df96253' && github.event.workflow_run.head_repository.full_name == 'MeherBenSalem/DonutAuction') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
       actions: read
     steps:
+      - name: Verify full CI for the exact release commit
+        id: ci
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const sourceSha = context.payload.workflow_run?.head_sha || context.sha;
+            const runs = await github.paginate(github.rest.actions.listWorkflowRuns, {
+              ...context.repo, workflow_id: "ci.yml", head_sha: sourceSha, status: "success", per_page: 100
+            });
+            const run = runs.find(candidate => candidate.head_sha === sourceSha && candidate.conclusion === "success"
+              && candidate.head_repository?.full_name === "MeherBenSalem/DonutAuction");
+            if (!run) throw new Error("No successful full CI for this exact source commit");
+            const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {
+              ...context.repo, run_id: run.id, filter: "latest", per_page: 100
+            });
+            const requiredSteps = ["Run mvn -B -q test", "Native MySQL history, row claims and legacy schema migration", "Run node --test scripts/release-helpers.test.mjs"];
+            for (const name of ["test (17)", "test (21)"]) {
+              const job = jobs.find(candidate => candidate.name === name);
+              if (!job || job.conclusion !== "success" || !requiredSteps.every(name => job.steps.some(step => step.name === name && step.conclusion === "success"))) {
+                throw new Error("Java 17/21, native MySQL and release-helper CI must all pass");
+              }
+            }
+            const recoveryRunId = context.payload.inputs?.artifact_run_id;
+            if (recoveryRunId) {
+              if (!/^[0-9]+$/.test(recoveryRunId)) throw new Error("Invalid artifact recovery run ID");
+              const { data: previous } = await github.rest.actions.getWorkflowRun({ ...context.repo, run_id: Number(recoveryRunId) });
+              if (previous.head_sha !== sourceSha || previous.name !== "Publish") {
+                throw new Error("Recovery artifact must belong to this exact release source commit");
+              }
+            }
+            core.setOutput("source_sha", sourceSha);
+            core.setOutput("run_id", String(run.id));
+            core.info(`Release source ${sourceSha}; verified full CI ${run.id}`);
+
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.ci.outputs.source_sha }}
 
       - name: Resolve version
         id: ver
         shell: bash
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
-          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
-            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
-          elif [[ -n "${{ inputs.version }}" ]]; then
-            echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          elif [[ "$GITHUB_EVENT_NAME" == workflow_run ]]; then
+            VERSION="1.6.0"
+          elif [[ -n "$INPUT_VERSION" ]]; then
+            VERSION="$INPUT_VERSION"
           else
             echo "Provide a v*.*.* tag or workflow_dispatch version" >&2
             exit 1
           fi
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Expected a numeric major.minor.patch version" >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-java@v4
         with:
@@ -111,6 +162,24 @@ jobs:
           path: ${{ steps.jar.outputs.path }}
           if-no-files-found: error
           retention-days: 90
+
+      - name: Record immutable release provenance
+        env:
+          SOURCE_COMMIT: ${{ steps.ci.outputs.source_sha }}
+          CI_RUN_ID: ${{ steps.ci.outputs.run_id }}
+          VERSION: ${{ steps.ver.outputs.version }}
+          JAR_PATH: ${{ steps.jar.outputs.path }}
+        run: |
+          node --input-type=module - <<'JS'
+          import fs from "node:fs";
+          import { hashes } from "./scripts/release-helpers.mjs";
+          fs.writeFileSync("release-provenance-receipt.json", JSON.stringify({
+            source_commit: process.env.SOURCE_COMMIT, ci_run_id: Number(process.env.CI_RUN_ID),
+            version: process.env.VERSION, filename: process.env.JAR_PATH.split("/").pop(),
+            hashes: hashes(fs.readFileSync(process.env.JAR_PATH)),
+            support: JSON.parse(fs.readFileSync("release/supported-minecraft.json", "utf8"))
+          }, null, 2));
+          JS
 
       - name: Upload Modrinth + CurseForge
         env:
