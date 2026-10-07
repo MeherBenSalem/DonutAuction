@@ -58,6 +58,7 @@ service:
   withdraw-failed: '&cUnable to withdraw funds: %error%'
   pay-seller-failed: '&cUnable to pay the seller right now.'
   purchased: '&aPurchased %item% for &6%price%&a.'
+  purchase-completed: '&aPurchase completed.'
   purchase-failed: '&cPurchase failed. Your money has been refunded.'
   auction-not-found: '&cAuction not found.'
   only-active-cancel: '&cOnly active auctions can be cancelled.'

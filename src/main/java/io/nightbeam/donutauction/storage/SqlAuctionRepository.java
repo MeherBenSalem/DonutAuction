@@ -178,7 +178,7 @@ public final class SqlAuctionRepository implements AuctionRepository {
     public CompletableFuture<Boolean> releaseClaim(UUID auctionId, UUID buyerId, long updatedAt) {
         return CompletableFuture.supplyAsync(() -> executeUpdate("""
                         UPDATE auctions SET buyer_uuid = NULL, sold_time = 0, status = ?, updated_at = ?, purchase_completed = FALSE
-                        WHERE auction_id = ? AND status = ? AND buyer_uuid = ?
+                        WHERE auction_id = ? AND status = ? AND buyer_uuid = ? AND purchase_completed = FALSE
                         """,
                 statement -> {
                     statement.setString(1, AuctionStatus.ACTIVE.name());

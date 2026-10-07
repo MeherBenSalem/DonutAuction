@@ -7,6 +7,7 @@
 - Additive completion flag in existing auction storage preserves legacy SOLD rows and excludes new unsettled claims; history writes do not alter settlement.
 - Reject non-finite/out-of-range sell prices before taking the held item; retain alias/confirmation/fast-sell regression coverage. The customer-specific browser-opening report remains unresolved.
 - Portable database index initialization and visible migration failures.
+- A confirmation-formatting failure after payment and item delivery cannot reopen a completed sale; completed purchase claims reject late release attempts.
 - Java 17/21, native SQLite/MySQL, GUI events, monetary precision and release receipt checks; immutable artifacts and guarded partial-upload recovery.
 
 ## 1.5.2

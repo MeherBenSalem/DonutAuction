@@ -345,6 +345,7 @@ public final class AuctionService {
                     msg("service.purchase-failed", "&cPurchase failed. Your money has been refunded.")));
         }
         schedulerAdapter.runEntity(buyer, () -> {
+            boolean deliveryCompleted = false;
             try {
                 if (!buyer.isOnline()) {
                     releaseClaimAndNotify(listing.auctionId(), buyerId);
@@ -382,6 +383,7 @@ public final class AuctionService {
                 noteSynced(soldListing.updatedAt());
                 listingSyncBus.publish(soldListing.auctionId(), ListingSyncAction.UPSERT);
                 deliverItem(buyer, soldListing.item());
+                deliveryCompleted = true;
                 // Best-effort bookkeeping is separate from settlement: failures never refund,
                 // release a sold row, re-deliver an item, or change the successful result.
                 recordCompletedPurchase(soldListing.auctionId(), buyerId);
@@ -391,6 +393,12 @@ public final class AuctionService {
                         "item", itemName(soldListing.item()),
                         "price", economyProvider.format(soldListing.price()))));
             } catch (Exception exception) {
+                if (deliveryCompleted) {
+                    plugin.getLogger().warning("Purchase settled, but its confirmation could not be rendered for "
+                            + listing.auctionId() + ": " + exception.getMessage());
+                    settled.complete(ActionResult.success(msg("service.purchase-completed", "&aPurchase completed.")));
+                    return;
+                }
                 plugin.getLogger().severe("Failed to settle auction purchase: " + exception.getMessage());
                 releaseClaimAndNotify(listing.auctionId(), buyerId);
                 settled.complete(ActionResult.failure(msg(

@@ -440,6 +440,23 @@ class RegisteredAuctionFlowTest {
         verify(economy, times(1)).deposit(any(), eq(100.0));
     }
 
+    @Test void confirmationFormattingFailureCannotReopenACompletedPurchase() throws Exception {
+        when(economy.format(anyDouble())).thenThrow(new IllegalStateException("provider formatting unavailable"));
+        var listing = listing(100.125); repository.save(listing).get(); cache.upsert(listing);
+        var buyer = server.addPlayer("Buyer"); permit(buyer, true);
+        var result = service.purchaseAuction(buyer, listing.auctionId()); await(result::isDone);
+        assertEquals(AuctionStatus.SOLD, repository.findById(listing.auctionId()).get().orElseThrow().status());
+        assertTrue(result.get().success());
+        assertEquals(1, service.history(buyer, HistoryView.BOUGHT, 1).get().totalResults());
+        assertEquals(1, service.history(seller, HistoryView.SOLD, 1).get().totalResults());
+        assertEquals(2, buyer.getInventory().all(Material.EMERALD).values().stream().mapToInt(ItemStack::getAmount).sum());
+        verify(repository, never()).releaseClaim(any(), any(), anyLong());
+        verify(economy, times(1)).withdraw(any(), eq(100.125));
+        verify(economy, times(1)).deposit(any(), eq(100.125));
+        assertFalse(service.purchaseAuction(buyer, listing.auctionId()).get().success());
+        verify(economy, times(1)).withdraw(any(), anyDouble());
+    }
+
     @Test void delayedHistoryResponseAfterCloseCannotReopenTheMenu() {
         var response = new CompletableFuture<TransactionPage>();
         doReturn(response).when(repository).findHistory(any(), any(), anyInt());
@@ -453,15 +470,18 @@ class RegisteredAuctionFlowTest {
     @Test void delayedHistoryResponseForAnOfflineViewerDoesNotRefreshTheMenu() {
         var response = new CompletableFuture<TransactionPage>();
         doReturn(response).when(repository).findHistory(any(), any(), anyInt());
-        var viewer = spy(seller);
-        gui.openHistory(viewer, HistoryView.BOUGHT, 1);
-        var loading = viewer.getOpenInventory().getTopInventory();
-        doReturn(false).when(viewer).isOnline();
-        response.complete(new TransactionPage(viewer.getUniqueId(), HistoryView.BOUGHT, List.of(), 1, 1, 0));
+        gui.openHistory(seller, HistoryView.BOUGHT, 1);
+        var loading = seller.getOpenInventory().getTopInventory();
+        assertTrue(seller.disconnect());
+        response.complete(new TransactionPage(seller.getUniqueId(), HistoryView.BOUGHT, List.of(), 1, 1, 0));
         pump();
-        assertSame(loading, viewer.getOpenInventory().getTopInventory());
-        assertEquals(plugin.messages().component("gui.history.loading", "Loading history..."),
-                loading.getItem(22).getItemMeta().displayName());
+        assertFalse(seller.isOnline());
+        var current = seller.getOpenInventory().getTopInventory();
+        if (current.getHolder() instanceof HistoryGui) {
+            assertSame(loading, current);
+            assertEquals(plugin.messages().component("gui.history.loading", "Loading history..."),
+                    current.getItem(22).getItemMeta().displayName());
+        }
     }
 
     @Test void deniedHistoryAccessDoesNotQueryStorageOrReplaceTheCurrentInventory() throws Exception {

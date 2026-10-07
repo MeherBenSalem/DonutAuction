@@ -12,6 +12,8 @@
 - Reject non-finite prices such as `NaN`, and reject out-of-range sell command prices before removing the held item. Invalid prices are no longer silently clamped into a different listing price.
 - Database index initialization uses portable metadata checks rather than MySQL-unsupported `CREATE INDEX IF NOT EXISTS` syntax. Migration errors are reported instead of being hidden.
 
+- A price-provider or confirmation-formatting failure after payment and item delivery now returns a safe success message. Completed purchase claims cannot be reopened by a late release attempt.
+
 ## Upgrade and data
 
 - Replace the jar and restart. Keep existing config, messages and database files; back up the database before upgrades. New settings/default messages are added without resetting custom values.

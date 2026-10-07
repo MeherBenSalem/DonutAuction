@@ -102,6 +102,27 @@ class TransactionHistoryRepositoryTest {
         assertEquals(1, history(buyer, HistoryView.BOUGHT, 1).totalResults());
     }
 
+    @Test void completedPurchaseCannotBeReopenedByALateClaimRelease() throws Exception {
+        UUID id = row(seller, null, "ACTIVE", 0, false);
+        assertTrue(repository.claimSold(id, buyer, 1000).get());
+        assertTrue(repository.markPurchaseCompleted(id, buyer).get());
+        assertFalse(repository.releaseClaim(id, buyer, 1001).get());
+        assertFalse(repository.claimSold(id, UUID.randomUUID(), 1002).get());
+        assertEquals(id, history(buyer, HistoryView.BOUGHT, 1).records().get(0).auctionId());
+        assertEquals(id, history(seller, HistoryView.SOLD, 1).records().get(0).auctionId());
+        try (var connection = source.getConnection(); var statement = connection.prepareStatement(
+                "SELECT status, buyer_uuid, sold_time, purchase_completed FROM auctions WHERE auction_id = ?")) {
+            statement.setString(1, id.toString());
+            try (var result = statement.executeQuery()) {
+                assertTrue(result.next());
+                assertEquals("SOLD", result.getString("status"));
+                assertEquals(buyer.toString(), result.getString("buyer_uuid"));
+                assertEquals(1000, result.getLong("sold_time"));
+                assertTrue(result.getBoolean("purchase_completed"));
+            }
+        }
+    }
+
     @Test void emptyManyPagesStableOrderingAndOutOfRangeClamping() throws Exception {
         assertEquals(1, history(buyer, HistoryView.BOUGHT, Integer.MAX_VALUE).currentPage());
         for (int i = 0; i < 100; i++) row(seller, buyer, "SOLD", 1000 + i / 2, true);
