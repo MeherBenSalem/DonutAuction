@@ -378,6 +378,20 @@ public final class AuctionService {
                             msg("service.pay-seller-failed", "&cUnable to pay the seller right now.")));
                     return;
                 }
+                // Sold notification
+                Player sellerPlayer = Bukkit.getPlayer(listing.seller());
+                if (sellerPlayer != null && sellerPlayer.isOnline()) {
+                    String itemDisplayName = itemName(listing.item());
+                    String formattedPrice = economyProvider.format(listing.price());
+
+                    schedulerAdapter.runEntity(sellerPlayer, () -> {
+                        String messageText = "§fYour item §e" + itemDisplayName +
+                                " §fhas been sold for §6" + formattedPrice + "§f!";
+                        plugin.messages().send(sellerPlayer, messageText);
+                        sellerPlayer.playSound(sellerPlayer.getLocation(),
+                                org.bukkit.Sound.BLOCK_NOTE_BLOCK_PLING, 1.0f, 1.0f);
+                    });
+                }
                 AuctionListing soldListing = listing.asSold(buyerId, soldTime);
                 auctionManager.upsert(soldListing);
                 noteSynced(soldListing.updatedAt());
