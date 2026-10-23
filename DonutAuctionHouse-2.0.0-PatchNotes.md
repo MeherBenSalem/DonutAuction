@@ -34,9 +34,10 @@
 - Items are now stored in Paper's binary format, which records the data version and runs Mojang's data fixers on load, so listings survive Minecraft upgrades. Rows written by 1.x stay readable.
 - The `auctions` table gains columns for tax, auctions, stored names and the collection, plus a small `auction_meta` table. Sales made before the upgrade appear in history and are not announced again.
 - Sold listings are no longer kept in memory or shown in Your Items, because payment always happens at purchase time. They are listed in History > Sold. Your Items now shows active listings and everything waiting to be collected.
+- Confirmations and history show the exact amount in parentheses only when your economy's format rounds it, so `$390.00 (390)` is now `$390.00`.
 - New default: listing in creative or spectator mode is blocked (`restrictions.blocked-gamemodes`, bypass `donutauction.restrictions.bypass`).
 
 ## Verification
 
-- 175 automated tests: unit tests, real command and inventory event flows on native SQLite, and the row claims on SQLite and MySQL 8.
+- 177 automated tests: unit tests, real command and inventory event flows on native SQLite, and the row claims on SQLite and MySQL 8.
 - An end-to-end matrix on real servers with network clients: Paper 1.20.1, 1.20.4, 1.20.6, 1.21.1, 1.21.4, 1.21.8, 1.21.11, 26.1.2, 26.2 and 26.3, and Folia 1.20.4, 1.21.4, 1.21.11 and 26.3, with Vault and VaultUnlocked. Each run lists, buys with 10% tax, checks the seller notification, runs an API auction through bid and win, opens history, runs `/ah price` and the console commands, and checks PlaceholderAPI. See `tools/smoke/README.md`.

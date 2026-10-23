@@ -13,9 +13,10 @@
 - Discord webhooks, PlaceholderAPI expansion, `DonutAuctionApi` with cancellable and async events, daily transaction log, sounds.
 - Staff: shift-right-click removal, `/ah admin view|remove|info|purge`, `/ah open <player>` for NPCs and menus.
 - MiniMessage + `&` + hex messages, translatable item names, escaped player text, non-italic menus.
+- Confirmations and history show the exact amount in parentheses only when the economy's format rounds it.
 - Upgrade-proof item storage (Paper binary format with data fixers); unreadable rows are skipped instead of blocking startup.
 - Fixed: permission listing limits were never read (dotted YAML keys); fast buy/sell preferences now load on join; inventory changes always on the player's thread; reclaims are row claims; Redis reconnects.
-- Verified on Paper 1.20.1–26.3 and Folia 1.20.4–26.3 with real clients (tools/smoke), 175 automated tests.
+- Verified on Paper 1.20.1–26.3 and Folia 1.20.4–26.3 with real clients (tools/smoke), 177 automated tests.
 
 ## 1.6.0
 
