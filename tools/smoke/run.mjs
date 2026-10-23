@@ -117,7 +117,8 @@ export class Server {
 
   start() {
     const log = fs.createWriteStream(path.join(this.dir, 'console.log'));
-    this.process = spawn(this.java, ['-Xms1G', '-Xmx2G', '-Dterminal.jline=false', '-Dterminal.ansi=false', '-jar', this.jar, '--nogui'], { cwd: this.dir });
+    this.process = spawn(this.java, ['-Xms1G', '-Xmx2G', '-Dterminal.jline=false', '-Dterminal.ansi=false', '-Dfile.encoding=UTF-8',
+      '-Dstdout.encoding=UTF-8', '-Dstderr.encoding=UTF-8', '-jar', this.jar, '--nogui'], { cwd: this.dir });
     let buffer = '';
     const onData = (chunk) => {
       log.write(chunk);

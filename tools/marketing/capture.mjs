@@ -215,7 +215,12 @@ async function scenes(server) {
   const [cx, cz] = [Number(located[1]), Number(located[2])];
   server.command(`spreadplayers ${cx} ${cz} 0 1 false ${PLAYER}`);
   await sleep(1500);
-  server.command(`execute as ${PLAYER} at @s run tp @s ~ ~1 ~ 135 6`);
+  // A one-block perch five blocks up, out of view, so the camera looks over the grove.
+  server.command(`execute as ${PLAYER} at @s run setblock ~ ~4 ~ minecraft:cherry_leaves[persistent=true]`);
+  server.command(`execute as ${PLAYER} at @s run tp @s ~ ~5 ~ 135 14`);
+  // Unlock recipes and the diamond advancement now, so their toasts are gone before the shots.
+  server.command(`recipe give ${PLAYER} *`);
+  server.command(`advancement grant ${PLAYER} only minecraft:story/mine_diamond`);
   await sleep(50_000); // terrain loads slowly with software rendering
   x('key', 'F1');
   await sleep(1500);
@@ -290,7 +295,7 @@ async function scenes(server) {
   // Bidding.
   const afterSecond = await order(server);
   await clickSlot(find(afterSecond, (l) => l.type === 'BID' && l.seller !== PLAYER, auction), 6, 1800);
-  await hover(29, 5);
+  await hover(13, 5);
   screenshot('bid-menu');
   await clickSlot(29, 5, 2200);
   screenshot('bid-placed');

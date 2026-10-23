@@ -123,7 +123,7 @@ The template supports `%amount%`, `%suffix%`, and `%currency%` (the provider's p
 Amounts below 1000 keep provider formatting. Rounding can promote `999.95k` to `1M`;
 amounts beyond a million continue using M. This is presentation only: listing, charge,
 payment and stored prices retain their original double values. Confirmations show the
-provider's formatted price plus the full decimal amount in parentheses, even if the provider rounds.
+provider's formatted price, followed by the full decimal amount in parentheses when the provider rounds it.
 
 Click the book at the bottom of the auction browser (or `/ah history`) to open transaction history.
 Bought/Sold tabs, previous/next arrows, Refresh and Back are read-only. Every page contains only the

@@ -99,10 +99,30 @@ public final class MarketService {
             CompletableFuture<PlayerStats> load = repository.playerStats(player);
             players.put(player, new Cached<>(cached == null ? null : cached.value(), cached == null ? 0L : now, load));
             load.whenComplete((stats, failure) -> {
-                if (failure == null) players.put(player, new Cached<>(stats, System.currentTimeMillis(), null));
+                if (failure != null) return;
+                // Invalidated while loading (a trade finished meanwhile): keep the figures, but read again next time.
+                players.compute(player, (key, current) -> new Cached<>(stats,
+                        current != null && current.refreshing() == load ? System.currentTimeMillis() : 0L, null));
             });
         }
         return cached == null || cached.value() == null ? PlayerStats.EMPTY : cached.value();
+    }
+
+    /**
+     * Current trader statistics: the cached figures while they are fresh, otherwise the database read that
+     * {@link #cachedPlayerStats} starts (or the one already running).
+     */
+    public CompletableFuture<PlayerStats> playerStats(UUID player) {
+        Cached<PlayerStats> cached = players.get(player);
+        if (cached != null && cached.value() != null && cached.refreshing() == null
+                && System.currentTimeMillis() - cached.loadedAt() < PLAYER_TTL) {
+            return CompletableFuture.completedFuture(cached.value());
+        }
+        cachedPlayerStats(player);
+        Cached<PlayerStats> loading = players.get(player);
+        if (loading != null && loading.refreshing() != null) return loading.refreshing();
+        // The read already finished (a fast database): its result is in the cache.
+        return CompletableFuture.completedFuture(loading == null || loading.value() == null ? PlayerStats.EMPTY : loading.value());
     }
 
     public void invalidatePlayer(UUID player) {

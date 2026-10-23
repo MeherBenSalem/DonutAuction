@@ -91,7 +91,7 @@ public final class AuctionGui extends BaseGui {
         }
 
         inventory.setItem(SORT_SLOT, ItemBuilder.of(Material.CAULDRON)
-                .name(messages().component("gui.auction.price-sort", "&ePrice Sort"))
+                .name(messages().component("gui.auction.price-sort", "&eSort"))
                 .lore(sortLore(request))
                 .build());
 
@@ -340,8 +340,7 @@ public final class AuctionGui extends BaseGui {
         List<Component> auctionLore = new ArrayList<>();
         if (listing.isBid()) {
             if (listing.bid().present()) {
-                auctionLore.add(messages().component("gui.listing-lore.current-bid", "&7Current bid: &6%price% &8(%bids% bids)",
-                        "price", auctionService.formatDisplayPrice(listing.bid().amount()), "bids", String.valueOf(listing.bid().count())));
+                auctionLore.add(currentBid(messages(), auctionService.formatDisplayPrice(listing.bid().amount()), listing.bid().count()));
                 auctionLore.add(messages().component("gui.listing-lore.top-bidder", "&7Top bidder: &f%bidder%",
                         "bidder", listing.bid().bidderName() == null ? "?" : listing.bid().bidderName()));
             } else {

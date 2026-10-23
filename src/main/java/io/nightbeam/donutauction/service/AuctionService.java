@@ -687,7 +687,11 @@ public final class AuctionService {
                             plugin.getLogger().warning("Purchase settled, but history completion could not be saved for "
                                     + auctionId + ". Payment and item delivery remain completed.");
                             if (!delivered) handOverAfterBookkeepingFailure(buyer, sold);
+                            return;
                         }
+                        // The sale now counts in both traders' statistics.
+                        market.invalidatePlayer(sold.seller());
+                        market.invalidatePlayer(buyer.getUniqueId());
                     });
         } catch (RuntimeException exception) {
             plugin.getLogger().warning("Purchase settled, but history completion could not be queued for " + auctionId);

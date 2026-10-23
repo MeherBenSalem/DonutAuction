@@ -1,6 +1,7 @@
 package io.nightbeam.donutauction.gui;
 
 import io.nightbeam.donutauction.util.ItemBuilder;
+import io.nightbeam.donutauction.util.MessageUtil;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -25,6 +26,14 @@ public abstract class BaseGui implements InventoryHolder {
     protected final Inventory attach(Inventory inventory) {
         this.inventory = inventory;
         return inventory;
+    }
+
+    /** The "Current bid" lore line, with "1 bid" or "N bids". */
+    protected static Component currentBid(MessageUtil messages, String price, int count) {
+        return count == 1
+                ? messages.component("gui.listing-lore.current-bid-single", "&7Current bid: &6%price% &8(1 bid)", "price", price)
+                : messages.component("gui.listing-lore.current-bid", "&7Current bid: &6%price% &8(%bids% bids)",
+                        "price", price, "bids", String.valueOf(count));
     }
 
     /** A nameless gray pane for empty slots. */

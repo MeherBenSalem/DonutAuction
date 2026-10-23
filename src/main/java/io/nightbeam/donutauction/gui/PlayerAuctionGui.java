@@ -2,6 +2,7 @@ package io.nightbeam.donutauction.gui;
 
 import io.nightbeam.donutauction.model.AuctionListing;
 import io.nightbeam.donutauction.model.AuctionStatus;
+import io.nightbeam.donutauction.model.PlayerStats;
 import io.nightbeam.donutauction.service.ActionResult;
 import io.nightbeam.donutauction.service.AuctionService;
 import io.nightbeam.donutauction.util.ItemBuilder;
@@ -13,6 +14,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -129,22 +131,34 @@ public final class PlayerAuctionGui extends BaseGui {
                             "count", String.valueOf(waiting)))
                     .glow(waiting > 0)
                     .build());
-            int limit = guiManager.limitService().getEffectiveLimit(player);
-            var stats = auctionService.market().cachedPlayerStats(player.getUniqueId());
-            inventory.setItem(SUMMARY_SLOT, ItemBuilder.of(Material.WRITABLE_BOOK)
-                    .name(messages().component("gui.your-items.summary", "&bYour Trading"))
-                    .lore(
-                            messages().component("gui.your-items.summary-active", "&7Active listings: &f%active%/%limit%",
-                                    "active", String.valueOf(auctionService.getPlayerActiveAuctionCount(player.getUniqueId())),
-                                    "limit", limit < 0 ? messages().raw("command.unlimited", "Unlimited") : String.valueOf(limit)),
-                            messages().component("gui.your-items.summary-sold", "&7Items sold: &f%count% &8(%amount%)",
-                                    "count", String.valueOf(stats.sold()), "amount", auctionService.formatPrice(stats.earned())),
-                            messages().component("gui.your-items.summary-bought", "&7Items bought: &f%count% &8(%amount%)",
-                                    "count", String.valueOf(stats.bought()), "amount", auctionService.formatPrice(stats.spent())))
-                    .build());
+            // Shows the cached figures at once and the fresh ones when the database answers (first open, or after a trade).
+            CompletableFuture<PlayerStats> fresh = auctionService.market().playerStats(player.getUniqueId());
+            boolean ready = fresh.isDone() && !fresh.isCompletedExceptionally();
+            inventory.setItem(SUMMARY_SLOT, summary(player, ready ? fresh.join() : auctionService.market().cachedPlayerStats(player.getUniqueId())));
+            if (!ready) {
+                fresh.thenAccept(stats -> guiManager.plugin().schedulerAdapter().runEntity(player, () -> {
+                    Inventory open = player.getOpenInventory().getTopInventory();
+                    if (open.getHolder(false) == this) open.setItem(SUMMARY_SLOT, summary(player, stats));
+                }));
+            }
         }
         fill(inventory, 45, 53);
         return inventory;
+    }
+
+    private ItemStack summary(Player player, PlayerStats stats) {
+        int limit = guiManager.limitService().getEffectiveLimit(player);
+        return ItemBuilder.of(Material.BOOK)
+                .name(messages().component("gui.your-items.summary", "&bYour Trading"))
+                .lore(
+                        messages().component("gui.your-items.summary-active", "&7Active listings: &f%active%/%limit%",
+                                "active", String.valueOf(auctionService.getPlayerActiveAuctionCount(player.getUniqueId())),
+                                "limit", limit < 0 ? messages().raw("command.unlimited", "Unlimited") : String.valueOf(limit)),
+                        messages().component("gui.your-items.summary-sold", "&7Items sold: &f%count% &8(%amount%)",
+                                "count", String.valueOf(stats.sold()), "amount", auctionService.formatPrice(stats.earned())),
+                        messages().component("gui.your-items.summary-bought", "&7Items bought: &f%count% &8(%amount%)",
+                                "count", String.valueOf(stats.bought()), "amount", auctionService.formatPrice(stats.spent())))
+                .build();
     }
 
     @Override
@@ -248,8 +262,7 @@ public final class PlayerAuctionGui extends BaseGui {
         } else {
             if (listing.isBid()) {
                 auctionLore.add(listing.bid().present()
-                        ? messages().component("gui.listing-lore.current-bid", "&7Current bid: &6%price% &8(%bids% bids)",
-                        "price", auctionService.formatDisplayPrice(listing.bid().amount()), "bids", String.valueOf(listing.bid().count()))
+                        ? currentBid(messages(), auctionService.formatDisplayPrice(listing.bid().amount()), listing.bid().count())
                         : messages().component("gui.listing-lore.starting-bid", "&7Starting bid: &6%price%",
                         "price", auctionService.formatDisplayPrice(listing.price())));
             } else {

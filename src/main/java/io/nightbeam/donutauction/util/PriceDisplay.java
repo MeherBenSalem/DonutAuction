@@ -37,8 +37,26 @@ public final class PriceDisplay {
     public static String precise(double price, ConfigurationSection config, DoubleFunction<String> provider) {
         requireFinite(price);
         String formatted = provider.apply(price);
-        // Keep the provider's currency style, and expose all digits even if it rounds.
-        return formatted + " (" + number(BigDecimal.valueOf(price), locale(config)) + ")";
+        BigDecimal exact = BigDecimal.valueOf(price);
+        // Keep the provider's currency style, and expose all digits when it rounds.
+        if (showsExactly(formatted, exact)) return formatted;
+        return formatted + " (" + number(exact, locale(config)) + ")";
+    }
+
+    /** True when the formatted text is the exact amount, read with "." or "," as the decimal separator. */
+    static boolean showsExactly(String formatted, BigDecimal amount) {
+        String digits = formatted == null ? "" : formatted.replaceAll("[^0-9.,]", "");
+        if (digits.isEmpty() || !Character.isDigit(digits.charAt(0)) || !Character.isDigit(digits.charAt(digits.length() - 1))) {
+            return false;
+        }
+        for (String candidate : new String[] {digits.replace(",", ""), digits.replace(".", "").replace(',', '.')}) {
+            try {
+                if (new BigDecimal(candidate).compareTo(amount) == 0) return true;
+            } catch (NumberFormatException notOneNumber) {
+                // Try the other reading.
+            }
+        }
+        return false;
     }
 
     private static String number(BigDecimal amount, Locale locale) {

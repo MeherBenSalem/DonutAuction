@@ -37,6 +37,15 @@ class PriceDisplayTest {
         assertEquals("€1 (0,0000001)", PriceDisplay.precise(0.0000001, config, value -> "€1"));
     }
 
+    @Test void exactProviderTextNeedsNoParentheses() {
+        assertEquals("$390.00", PriceDisplay.precise(390, config, value -> "$390.00"));
+        assertEquals("$1,234.50", PriceDisplay.precise(1234.5, config, value -> "$1,234.50"));
+        assertEquals("1.234,50 €", PriceDisplay.precise(1234.5, config, value -> "1.234,50 €"));
+        assertEquals("500 coins", PriceDisplay.precise(500, config, value -> "500 coins"));
+        assertEquals("$0.01 (0.005)", PriceDisplay.precise(0.005, config, value -> "$0.01"));
+        assertEquals("coins (12)", PriceDisplay.precise(12, config, value -> "coins"));
+    }
+
     @Test void malformedConfigHasSafeDefaults() {
         config.set("price-display.locale", "bad_!");
         config.set("price-display.compact.precision", -100);

@@ -286,7 +286,7 @@ gui:
     bid: '&6ᴘʟᴀᴄᴇ ᴀ ʙɪᴅ'
 
   auction:
-    price-sort: '&ePrice Sort'
+    price-sort: '&eSort'
     sort-option: '&7  %mode%'
     sort-selected: '&a▶ %mode%'
     click-cycle-sort: '&eClick to cycle sorting'
@@ -386,6 +386,7 @@ gui:
     price-each: '&8(%price% each)'
     starting-bid: '&7Starting bid: &6%price%'
     current-bid: '&7Current bid: &6%price% &8(%bids% bids)'
+    current-bid-single: '&7Current bid: &6%price% &8(1 bid)'
     top-bidder: '&7Top bidder: &f%bidder%'
     min-bid: '&7Next bid: &e%price%'
     seller: '&7Seller: &f%seller%'

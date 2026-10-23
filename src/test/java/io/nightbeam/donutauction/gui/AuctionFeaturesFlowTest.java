@@ -131,6 +131,19 @@ class AuctionFeaturesFlowTest extends FlowTestBase {
         assertEquals(1, service.history(buyer, HistoryView.BOUGHT, 1).get().totalResults());
     }
 
+    @Test void yourItemsSummaryCatchesUpWithTradesMadeThisSession() throws Exception {
+        var listing = saved(listing(100));
+        var buyer = player("Buyer");
+        assertTrue(done(service.purchaseAuction(buyer, listing.auctionId())).success());
+        await(() -> { try { return service.history(buyer, HistoryView.BOUGHT, 1).get().totalResults() == 1; } catch (Exception e) { return false; } });
+        // First open: the figures load in the background and the open menu is updated in place.
+        assertTrue(server.dispatchCommand(buyer, "ah collect"));
+        assertInstanceOf(PlayerAuctionGui.class, buyer.getOpenInventory().getTopInventory().getHolder());
+        await(() -> lore(buyer, PlayerAuctionGui.SUMMARY_SLOT).contains("Items bought: 1"));
+        assertTrue(server.dispatchCommand(seller, "ah collect"));
+        await(() -> lore(seller, PlayerAuctionGui.SUMMARY_SLOT).contains("Items sold: 1"));
+    }
+
     @Test void biddingHoldsMoneyRefundsTheOutbidPlayerAndTheWinnerCollects() throws Exception {
         var listing = auction(100, 3_600_000L);
         var alice = player("Alice");

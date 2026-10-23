@@ -67,8 +67,7 @@ public final class BidGui extends BaseGui {
                 lore.add(Component.empty());
             }
             if (live.bid().present()) {
-                lore.add(MessageUtil.loreLine(messages().component("gui.listing-lore.current-bid", "&7Current bid: &6%price% &8(%bids% bids)",
-                        "price", auctionService.formatPrecisePrice(live.bid().amount()), "bids", String.valueOf(live.bid().count()))));
+                lore.add(MessageUtil.loreLine(currentBid(messages(), auctionService.formatPrecisePrice(live.bid().amount()), live.bid().count())));
                 lore.add(MessageUtil.loreLine(messages().component("gui.listing-lore.top-bidder", "&7Top bidder: &f%bidder%",
                         "bidder", live.bid().bidderName() == null ? "?" : live.bid().bidderName())));
             } else {
