@@ -219,6 +219,8 @@ function prepare(target, jars) {
     // 26.x defaults white-list to true.
     'online-mode=false', 'white-list=false', 'enforce-secure-profile=false', `server-port=${PORT}`, 'level-type=minecraft\\:flat', 'generate-structures=false',
     'spawn-protection=0', 'view-distance=3', 'simulation-distance=3', 'spawn-monsters=false', 'spawn-animals=false', 'motd=DonutAuction smoke',
+    // 26.x moved spawn-monsters into a game rule; peaceful keeps hostile mobs (slimes on flat worlds) away everywhere.
+    'difficulty=peaceful',
   ].join('\n') + '\n');
   for (const jar of jars) fs.copyFileSync(jar, path.join(dir, 'plugins', path.basename(jar)));
   // Settings the scenario relies on; the plugin adds every other default on start.

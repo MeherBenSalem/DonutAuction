@@ -38,7 +38,8 @@ node tools/smoke/run.mjs paper-1.20.1 folia-26.3  # selected targets
 JDKs (Temurin 17/21/25), server jars (PaperMC Fill API), Vault, VaultUnlocked, PlaceholderAPI and
 ViaVersion/ViaBackwards are downloaded on first use and cached in `$AUCTIONLAB_HOME`
 (default `~/.cache/donutauction-smoke`). Servers listen on `$AUCTIONLAB_PORT` (default 25599). A JSON
-report is written to `$AUCTIONLAB_HOME/reports/`.
+report is written to `$AUCTIONLAB_HOME/reports/`. `node tools/smoke/compat.mjs` turns the newest report
+into `marketing/source/compat.json` for the compatibility card.
 
 `fixture/` is a test-only plugin: an in-memory Vault economy and console helpers (`lab money`, `lab give`,
 `lab count`, `lab balance`, `lab sudo`, `lab auction`, `lab seed`, `lab order`). Never install it on a
