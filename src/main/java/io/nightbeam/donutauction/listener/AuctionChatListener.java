@@ -1,11 +1,17 @@
 package io.nightbeam.donutauction.listener;
 
 import io.nightbeam.donutauction.gui.GuiManager;
+import io.papermc.paper.event.player.AsyncChatEvent;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
-import org.bukkit.event.player.AsyncPlayerChatEvent;
 
+/**
+ * Answers to chat questions (search, exact price, custom bid). Uses Paper's chat event, which every
+ * supported version fires, at the lowest priority so the answer never reaches public chat.
+ */
 public final class AuctionChatListener implements Listener {
 
     private final GuiManager guiManager;
@@ -14,15 +20,15 @@ public final class AuctionChatListener implements Listener {
         this.guiManager = guiManager;
     }
 
-    @EventHandler
-    public void onAsyncChat(AsyncPlayerChatEvent event) {
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onAsyncChat(AsyncChatEvent event) {
         Player player = event.getPlayer();
-        if (!guiManager.isAwaitingSearch(player.getUniqueId())) {
+        if (!guiManager.isAwaitingInput(player.getUniqueId())) {
             return;
         }
 
         event.setCancelled(true);
-        String query = event.getMessage();
-        guiManager.plugin().schedulerAdapter().runEntity(player, () -> guiManager.handleSearchInput(player, query));
+        String text = PlainTextComponentSerializer.plainText().serialize(event.message());
+        guiManager.plugin().schedulerAdapter().runEntity(player, () -> guiManager.handleSearchInput(player, text));
     }
 }

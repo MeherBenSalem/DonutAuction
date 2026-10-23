@@ -1,20 +1,21 @@
 package io.nightbeam.donutauction.sync;
 
+import io.nightbeam.donutauction.model.AuctionListing;
 import io.nightbeam.donutauction.storage.AuctionRepository;
-import io.nightbeam.donutauction.service.AuctionManager;
 import java.util.UUID;
+import java.util.function.Consumer;
 import java.util.logging.Logger;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPubSub;
 
 /**
  * Redis is a notification bus only. Receivers always re-read MySQL before touching the cache.
+ * The subscriber reconnects with back-off when Redis restarts; MySQL polling covers the gap.
  */
 public final class RedisListingSyncBus implements ListingSyncBus {
 
     private final Logger logger;
     private final AuctionRepository repository;
-    private final AuctionManager auctionManager;
     private final String instanceId;
     private final String host;
     private final int port;
@@ -22,15 +23,16 @@ public final class RedisListingSyncBus implements ListingSyncBus {
     private final String channel;
 
     private volatile boolean running;
+    private volatile Consumer<AuctionListing> onUpdated = listing -> { };
+    private volatile Consumer<UUID> onRemoved = id -> { };
     private Thread subscriberThread;
     private Jedis publisher;
-    private Jedis subscriber;
-    private JedisPubSub pubSub;
+    private volatile Jedis subscriber;
+    private volatile JedisPubSub pubSub;
 
     public RedisListingSyncBus(
             Logger logger,
             AuctionRepository repository,
-            AuctionManager auctionManager,
             String instanceId,
             String host,
             int port,
@@ -39,7 +41,6 @@ public final class RedisListingSyncBus implements ListingSyncBus {
     ) {
         this.logger = logger;
         this.repository = repository;
-        this.auctionManager = auctionManager;
         this.instanceId = instanceId;
         this.host = host;
         this.port = port;
@@ -48,16 +49,17 @@ public final class RedisListingSyncBus implements ListingSyncBus {
     }
 
     @Override
+    public void setRemoteHandler(Consumer<AuctionListing> updated, Consumer<UUID> removed) {
+        this.onUpdated = updated;
+        this.onRemoved = removed;
+    }
+
+    @Override
     public void start() {
         try {
-            this.publisher = connect();
-            this.subscriber = connect();
-            this.pubSub = new JedisPubSub() {
-                @Override
-                public void onMessage(String ch, String message) {
-                    handleMessage(message);
-                }
-            };
+            synchronized (this) {
+                this.publisher = connect();
+            }
             this.running = true;
             this.subscriberThread = new Thread(this::subscribeLoop, "DonutAuction-Redis");
             this.subscriberThread.setDaemon(true);
@@ -75,8 +77,9 @@ public final class RedisListingSyncBus implements ListingSyncBus {
     public void shutdown() {
         running = false;
         try {
-            if (pubSub != null && pubSub.isSubscribed()) {
-                pubSub.unsubscribe();
+            JedisPubSub current = pubSub;
+            if (current != null && current.isSubscribed()) {
+                current.unsubscribe();
             }
         } catch (Exception ignored) {
         }
@@ -88,23 +91,57 @@ public final class RedisListingSyncBus implements ListingSyncBus {
 
     @Override
     public synchronized void publish(UUID auctionId, ListingSyncAction action) {
-        if (!running || publisher == null) {
+        if (!running) {
             return;
         }
-        try {
-            publisher.publish(channel, instanceId + "\t" + action.name() + "\t" + auctionId);
-        } catch (Exception exception) {
-            logger.warning("Failed to publish listing sync: " + exception.getMessage());
+        String message = instanceId + "\t" + action.name() + "\t" + auctionId;
+        for (int attempt = 0; attempt < 2; attempt++) {
+            try {
+                if (publisher == null) publisher = connect();
+                publisher.publish(channel, message);
+                return;
+            } catch (Exception exception) {
+                closePublisher();
+                if (attempt == 1) logger.warning("Failed to publish listing sync: " + exception.getMessage());
+            }
         }
     }
 
     private void subscribeLoop() {
-        try {
-            subscriber.subscribe(pubSub, channel);
-        } catch (Exception exception) {
-            if (running) {
-                logger.warning("Redis listing subscriber stopped: " + exception.getMessage());
+        long backoff = 1_000L;
+        boolean warned = false;
+        while (running) {
+            try {
+                subscriber = connect();
+                pubSub = new JedisPubSub() {
+                    @Override
+                    public void onMessage(String ch, String message) {
+                        handleMessage(message);
+                    }
+                };
+                if (warned) logger.info("Redis listing sync reconnected.");
+                backoff = 1_000L;
+                warned = false;
+                subscriber.subscribe(pubSub, channel);
+            } catch (Exception exception) {
+                if (running && !warned) {
+                    warned = true;
+                    logger.warning("Redis listing subscriber disconnected (" + exception.getMessage()
+                            + "); retrying. MySQL polling keeps servers in sync meanwhile.");
+                }
+            } finally {
+                try {
+                    if (subscriber != null) subscriber.close();
+                } catch (Exception ignored) {
+                }
             }
+            if (!running) return;
+            try {
+                Thread.sleep(backoff);
+            } catch (InterruptedException interrupted) {
+                return;
+            }
+            backoff = Math.min(30_000L, backoff * 2);
         }
     }
 
@@ -125,20 +162,17 @@ public final class RedisListingSyncBus implements ListingSyncBus {
         } catch (IllegalArgumentException ignored) {
             return;
         }
-        ListingSyncAction action;
         try {
-            action = ListingSyncAction.valueOf(parts[1]);
+            ListingSyncAction.valueOf(parts[1]);
         } catch (IllegalArgumentException ignored) {
             return;
         }
         repository.findById(auctionId).thenAccept(optional -> {
-            if (optional.isEmpty() || action == ListingSyncAction.REMOVE) {
-                if (optional.isEmpty()) {
-                    auctionManager.remove(auctionId);
-                    return;
-                }
+            if (optional.isEmpty()) {
+                onRemoved.accept(auctionId);
+                return;
             }
-            optional.ifPresent(auctionManager::mergeRemote);
+            onUpdated.accept(optional.get());
         }).exceptionally(throwable -> {
             logger.warning("Failed to apply remote listing " + auctionId + ": " + throwable.getMessage());
             return null;
@@ -154,20 +188,24 @@ public final class RedisListingSyncBus implements ListingSyncBus {
         return jedis;
     }
 
-    private void closeQuietly() {
+    private synchronized void closePublisher() {
         try {
             if (publisher != null) {
                 publisher.close();
             }
         } catch (Exception ignored) {
         }
+        publisher = null;
+    }
+
+    private void closeQuietly() {
+        closePublisher();
         try {
             if (subscriber != null) {
                 subscriber.close();
             }
         } catch (Exception ignored) {
         }
-        publisher = null;
         subscriber = null;
     }
 }

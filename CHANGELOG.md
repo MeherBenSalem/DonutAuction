@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.0.0 — The Market Update
+
+- Auctions with bids next to Buy It Now: escrowed bids, instant outbid refunds, anti-snipe extension, settled exactly once across servers and restarts.
+- Sales tax with permission tiers and a tax account; listing fees (flat, percent, cap, exemption); per-item price limits.
+- Price insight in the sell menu, `/ah price` and PlaceholderAPI (recent average, range, last sale, cheapest listed).
+- Sale, outbid, won, expired and staff-removal notifications, with a "while you were away" summary on join.
+- Whole-stack delivery: full inventories and auction wins go to `/ah collect` instead of the ground; collect all; right-click to relist.
+- Search by lore, enchantment, seller and shulker contents; Ending Soon and Lowest Price Each sorts; Buy It Now / Auctions filter; `/ah view <player>`.
+- `/ah sell 2.5k` shorthand, typed exact prices, shift-click steps, fee and earnings preview.
+- Blacklist, disabled worlds, blocked game modes (creative/spectator by default) and listing cooldown.
+- Discord webhooks, PlaceholderAPI expansion, `DonutAuctionApi` with cancellable and async events, daily transaction log, sounds.
+- Staff: shift-right-click removal, `/ah admin view|remove|info|purge`, `/ah open <player>` for NPCs and menus.
+- MiniMessage + `&` + hex messages, translatable item names, escaped player text, non-italic menus.
+- Upgrade-proof item storage (Paper binary format with data fixers); unreadable rows are skipped instead of blocking startup.
+- Fixed: permission listing limits were never read (dotted YAML keys); fast buy/sell preferences now load on join; inventory changes always on the player's thread; reclaims are row claims; Redis reconnects.
+- Verified on Paper 1.20.1–26.3 and Folia 1.20.4–26.3 with real clients (tools/smoke), 175 automated tests.
+
 ## 1.6.0
 
 - Optional locale-aware k/M price display; existing provider formatting remains the default and exact amounts remain visible in confirmations.

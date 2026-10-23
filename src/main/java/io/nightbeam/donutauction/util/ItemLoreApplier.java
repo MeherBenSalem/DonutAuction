@@ -33,10 +33,13 @@ public final class ItemLoreApplier {
             return;
         }
 
+        List<Component> styled = new ArrayList<>(auctionLore.size());
+        for (Component line : auctionLore) styled.add(MessageUtil.loreLine(line));
+        auctionLore = styled;
         if (mode == LoreMode.REPLACE) {
             meta.lore(auctionLore);
         } else if (mode == LoreMode.APPEND) {
-            List<Component> existingLore = meta.lore();
+            List<Component> existingLore = meta.hasLore() ? meta.lore() : null;
             List<Component> combined = new ArrayList<>();
 
             if (existingLore != null && !existingLore.isEmpty()) {
@@ -45,9 +48,9 @@ public final class ItemLoreApplier {
                     String separator = messages != null
                             ? messages.raw("gui.listing-lore.separator", "&8————————————————")
                             : "————————————————";
-                    combined.add(messages != null
+                    combined.add(MessageUtil.loreLine(messages != null
                             ? messages.component(separator)
-                            : Component.text(separator, NamedTextColor.DARK_GRAY));
+                            : Component.text(separator, NamedTextColor.DARK_GRAY)));
                 }
             }
 

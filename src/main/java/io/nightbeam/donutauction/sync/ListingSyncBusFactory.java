@@ -1,7 +1,6 @@
 package io.nightbeam.donutauction.sync;
 
 import io.nightbeam.donutauction.AuctionHousePlugin;
-import io.nightbeam.donutauction.service.AuctionManager;
 import io.nightbeam.donutauction.storage.AuctionRepository;
 import java.util.UUID;
 
@@ -10,11 +9,7 @@ public final class ListingSyncBusFactory {
     private ListingSyncBusFactory() {
     }
 
-    public static ListingSyncBus create(
-            AuctionHousePlugin plugin,
-            AuctionRepository repository,
-            AuctionManager auctionManager
-    ) {
+    public static ListingSyncBus create(AuctionHousePlugin plugin, AuctionRepository repository) {
         if (!plugin.getConfig().getBoolean("sync.redis.enabled", false)) {
             return new NoopListingSyncBus();
         }
@@ -26,7 +21,6 @@ public final class ListingSyncBusFactory {
         RedisListingSyncBus bus = new RedisListingSyncBus(
                 plugin.getLogger(),
                 repository,
-                auctionManager,
                 instanceId,
                 host,
                 port,

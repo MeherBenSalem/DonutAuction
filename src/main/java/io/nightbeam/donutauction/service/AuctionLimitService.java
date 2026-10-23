@@ -20,21 +20,25 @@ public final class AuctionLimitService {
         this.defaultLimit = plugin.getConfig().getInt("auction-limits.default-limit", 5);
         this.permissionLimits = new HashMap<>();
 
-        if (plugin.getConfig().isConfigurationSection("auction-limits.permissions")) {
-            var section = plugin.getConfig().getConfigurationSection("auction-limits.permissions");
-            if (section != null) {
-                for (String key : section.getKeys(false)) {
-                    permissionLimits.put(key, section.getInt(key, 0));
-                }
-            }
-        }
+        // Permission nodes contain dots, which YAML stores as nested sections: read the full paths.
+        readTiers("auction-limits.permissions", false);
+        readTiers("auction-slots.permissions", true);
+    }
 
-        if (plugin.getConfig().isConfigurationSection("auction-slots.permissions")) {
-            var section = plugin.getConfig().getConfigurationSection("auction-slots.permissions");
-            if (section != null) {
-                for (String key : section.getKeys(false)) {
-                    permissionLimits.putIfAbsent(key, section.getInt(key, 0));
-                }
+    private void readTiers(String path, boolean keepExisting) {
+        var section = plugin.getConfig().getConfigurationSection(path);
+        if (section == null) {
+            return;
+        }
+        for (String key : section.getKeys(true)) {
+            if (section.isConfigurationSection(key)) {
+                continue;
+            }
+            int value = section.getInt(key, 0);
+            if (keepExisting) {
+                permissionLimits.putIfAbsent(key, value);
+            } else {
+                permissionLimits.put(key, value);
             }
         }
     }

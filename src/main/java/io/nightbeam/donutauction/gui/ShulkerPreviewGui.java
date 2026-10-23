@@ -36,9 +36,10 @@ public final class ShulkerPreviewGui extends BaseGui {
         }
 
         inventory.setItem(49, io.nightbeam.donutauction.util.ItemBuilder.of(Material.ARROW)
-                .name(messages().component("gui.common.back-to-auction", "Back to Auction"))
+                .name(messages().component("gui.common.back-to-auction", "&eBack to Auction"))
                 .lore(messages().component("gui.common.back-to-auction-lore", "Return to the auction browser"))
                 .build());
+        fill(inventory, 27, 53);
 
         return inventory;
     }

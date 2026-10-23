@@ -97,13 +97,22 @@ public final class HistoryGui extends BaseGui {
             item = ItemBuilder.of(Material.PAPER).name(messages().component("gui.history.unavailable-item", "Item details unavailable")).build();
         }
         String other = record.counterparty() == null ? messages().unknownSeller() : record.counterparty().toString();
-        if (record.counterparty() != null) {
+        if (record.counterpartyName() != null && !record.counterpartyName().isBlank()) {
+            other = record.counterpartyName();
+        } else if (record.counterparty() != null) {
             String name = Bukkit.getOfflinePlayer(record.counterparty()).getName();
             if (name != null && !name.isBlank()) other = name;
         }
         List<Component> lore = new ArrayList<>();
         String otherLabel = view == HistoryView.BOUGHT ? "Seller" : "Buyer";
         lore.add(messages().component("gui.history.price", "&7Price: %price%", "price", service.formatPrecisePrice(record.price())));
+        if (view == HistoryView.SOLD && record.tax() > 0.0D) {
+            lore.add(messages().component("gui.history.tax", "&7Tax: &c%tax% &8(you received %net%)",
+                    "tax", service.formatPrice(record.tax()), "net", service.formatPrice(record.price() - record.tax())));
+        }
+        if (record.type() == io.nightbeam.donutauction.model.ListingType.BID) {
+            lore.add(messages().component("gui.history.auction", "&dWon at auction"));
+        }
         lore.add(messages().component("gui.history.date", "&7Date: %date%", "date", date(record.soldTime())));
         lore.add(messages().component("gui.history." + otherLabel.toLowerCase(java.util.Locale.ROOT), "&7" + otherLabel + ": %name%", "name", other));
         lore.add(messages().component("gui.history.id", "&8Transaction: %id%", "id", record.auctionId().toString()));
@@ -112,7 +121,7 @@ public final class HistoryGui extends BaseGui {
         display.editMeta(meta -> {
             List<Component> all = new ArrayList<>();
             if (meta.hasLore() && meta.lore() != null) { all.addAll(meta.lore()); all.add(Component.empty()); }
-            all.addAll(lore);
+            for (Component line : lore) all.add(MessageUtil.loreLine(line));
             meta.lore(all);
         });
         return display;

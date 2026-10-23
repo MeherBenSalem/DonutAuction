@@ -1,4 +1,13 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  DonutAuctionHouse configuration
+#
+#  New settings are added to this file when the server starts; your values are kept.
+#  Reload with /ah reload (storage and sync settings need a restart).
+#  All text players see lives in messages.yml (MiniMessage, &-codes and &#RRGGBB hex).
+# ─────────────────────────────────────────────────────────────────────────────
+
 storage:
+  # SQLITE for one server, MYSQL to share one market between servers (needs a restart to change).
   type: SQLITE
   sqlite:
     file: auctions.db
@@ -11,11 +20,56 @@ storage:
     parameters: useSSL=false&characterEncoding=utf8
 
 auction:
+  # Default listing length for /ah sell and fast sell, in hours.
   listing-duration-hours: 48
+  # Lengths offered in the sell menu (up to 7), in hours.
+  durations: [6, 12, 24, 48, 72, 168]
+  # Longest allowed listing, in hours.
+  max-duration-hours: 168
   browse-page-size: 45
   expired-scan-interval-seconds: 60
+  # Price limits for a whole listing.
   min-price: 10
   max-price: 1.0E9
+  # Per-item limits, per single item (a stack of 64 may cost 64 times as much). Example:
+  # price-limits:
+  #   DIAMOND: {min: 50, max: 100000}
+  #   ELYTRA: {min: 25000}
+  price-limits: {}
+  # Accept 1k, 2.5m, 3b and 1t in /ah sell and price prompts.
+  allow-shorthand-prices: true
+  # Seconds a player must wait between two listings (0 = off). Bypass: donutauction.cooldown.bypass
+  cooldown-seconds: 0
+
+# Auctions with bids, next to Buy It Now. Sellers pick the type in the sell menu or with /ah auction <price>.
+bidding:
+  enabled: true
+  # Permission needed to start an auction (anyone can bid). Leave empty to allow everyone.
+  permission: donutauction.sell.auction
+  # A new bid must beat the current one by this percent or this amount, whichever is higher.
+  min-increment-percent: 5
+  min-increment: 1
+  # A bid in the final seconds extends the auction to this many seconds, so nobody wins by sniping.
+  anti-snipe-seconds: 30
+
+economy:
+  # Taken from the seller's money when an item sells. The lowest matching tier applies.
+  sales-tax:
+    enabled: false
+    percent: 5.0
+    permissions:
+      donutauction.tax.vip: 2.5
+      donutauction.tax.exempt: 0
+    # Player name or UUID that receives the tax (a server bank account). Empty removes it from the economy.
+    deposit-to: ''
+  # Paid by the seller when listing, and not refunded.
+  listing-fee:
+    enabled: false
+    flat: 0
+    percent: 0.0
+    # Highest fee for one listing (0 = no cap).
+    max: 0
+    exempt-permission: donutauction.fee.exempt
 
 auction-lore:
   mode: APPEND
@@ -34,6 +88,51 @@ price-display:
 history:
   timezone: UTC # IANA timezone; dates include the zone
   date-format: 'yyyy-MM-dd HH:mm z'
+  # Delete settled sales and returned items older than this many days (0 keeps everything).
+  retention-days: 0
+
+# Price insight: recent sale prices in the sell menu, /ah price and PlaceholderAPI.
+market:
+  insight: true
+  window-days: 7
+
+notifications:
+  # Tell sellers when an item sells (chat, sound and title), right away or when they next join.
+  sold: true
+  titles: true
+  outbid: true
+  won: true
+  expired: true
+  bids-on-my-items: true
+  # Summary of sales made while the player was offline.
+  join-summary: true
+  join-delay-seconds: 3
+
+collection:
+  # Hand won or bought items that wait in /ah collect to the player when they join (if they fit).
+  deliver-on-join: true
+
+# Announce new listings in chat to players with donutauction.broadcast.receive.
+broadcast:
+  new-listings: false
+  min-price: 10000
+  cooldown-seconds: 10
+
+restrictions:
+  # Worlds where players cannot list items. Bypass: donutauction.restrictions.bypass
+  disabled-worlds: []
+  # Game modes that cannot list items (stops creative-mode items reaching the economy).
+  blocked-gamemodes: [CREATIVE, SPECTATOR]
+
+# Items that can never be listed. Bypass: donutauction.blacklist.bypass
+blacklist:
+  materials: [BEDROCK, BARRIER, COMMAND_BLOCK, CHAIN_COMMAND_BLOCK, REPEATING_COMMAND_BLOCK, STRUCTURE_BLOCK, JIGSAW, DEBUG_STICK, LIGHT, STRUCTURE_VOID]
+  # Case-insensitive text in the item's name or lore, for example "Soulbound".
+  name-contains: []
+  lore-contains: []
+  custom-model-data: []
+  # Plugin data keys that mark untradeable items, for example "myplugin:soulbound".
+  pdc-keys: []
 
 auction-limits:
   enabled: true
@@ -63,13 +162,47 @@ fast-sell:
   default-state: false
   require-permission: true
 
-debug:
-  # When true, logs every invalid/repeated pending-sale claim. When false, samples only.
-  pending-sales: false
-
 shulker-support:
   enabled: true
   preview-contents: true
+
+# Sound keys (namespace:path), optionally followed by :volume:pitch. Use "none" to mute one.
+sounds:
+  enabled: true
+  click: 'minecraft:ui.button.click:0.4:1.2'
+  success: 'minecraft:entity.experience_orb.pickup:0.6:1.3'
+  error: 'minecraft:entity.villager.no:0.6:1.0'
+  purchase: 'minecraft:entity.player.levelup:0.5:1.6'
+  sold: 'minecraft:block.note_block.pling:0.8:1.4'
+  outbid: 'minecraft:block.note_block.bass:0.8:0.8'
+  won: 'minecraft:ui.toast.challenge_complete:0.6:1.2'
+
+# Post trades to a Discord channel. Create the webhook in Channel settings > Integrations.
+discord:
+  enabled: false
+  webhook-url: ''
+  username: 'Auction House'
+  avatar-url: ''
+  # LISTED, SOLD, BID, WON, EXPIRED
+  events: [LISTED, SOLD, WON]
+  # Only post listings and sales at or above this price.
+  min-price: 0
+  # Seller head next to the title. {uuid} is replaced.
+  head-url: 'https://mc-heads.net/avatar/{uuid}/64'
+  # Optional item picture; {material} is replaced by the lower-case item id (e.g. diamond_sword).
+  item-icon-url: ''
+  footer: 'DonutAuctionHouse'
+
+# A line per trade in plugins/DonutAuctionHouse/logs/transactions-YYYY-MM-DD.log (UTC).
+transaction-log:
+  enabled: true
+
+placeholderapi:
+  enabled: true
+
+debug:
+  # When true, logs every invalid/repeated pending-sale claim. When false, samples only.
+  pending-sales: false
 
 metrics:
   enabled: true

@@ -51,6 +51,16 @@ public final class SchedulerAdapter {
         Bukkit.getScheduler().runTask(plugin, runnable);
     }
 
+    /** Runs on the entity's thread after a delay; dropped if the entity leaves (logs out) first. */
+    public void runEntityLater(Entity entity, Runnable runnable, long delayTicks) {
+        long delay = Math.max(1L, delayTicks);
+        if (regionScheduler) {
+            entity.getScheduler().runDelayed(plugin, task -> runnable.run(), null, delay);
+            return;
+        }
+        Bukkit.getScheduler().runTaskLater(plugin, runnable, delay);
+    }
+
     public CancellableTask runGlobalRepeating(Runnable runnable, long initialDelayTicks, long periodTicks) {
         if (regionScheduler) {
             io.papermc.paper.threadedregions.scheduler.ScheduledTask paperTask =

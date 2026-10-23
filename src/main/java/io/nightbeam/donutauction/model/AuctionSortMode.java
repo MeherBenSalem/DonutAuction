@@ -3,10 +3,11 @@ package io.nightbeam.donutauction.model;
 import java.util.Comparator;
 
 public enum AuctionSortMode {
-    HIGHEST_PRICE("Highest Price", Comparator.comparingDouble(AuctionListing::price).reversed()),
-    LOWEST_PRICE("Lowest Price", Comparator.comparingDouble(AuctionListing::price)),
-    LATEST("Latest", Comparator.comparingLong(AuctionListing::expirationTime)),
-    RECENTLY_LISTED("Recently Listed", Comparator.comparingLong(AuctionListing::listingTime).reversed());
+    RECENTLY_LISTED("Recently Listed", Comparator.comparingLong(AuctionListing::listingTime).reversed()),
+    LATEST("Ending Soon", Comparator.comparingLong(AuctionListing::expirationTime)),
+    LOWEST_PRICE("Lowest Price", Comparator.comparingDouble(AuctionListing::currentPrice)),
+    HIGHEST_PRICE("Highest Price", Comparator.comparingDouble(AuctionListing::currentPrice).reversed()),
+    LOWEST_UNIT_PRICE("Lowest Price Each", Comparator.comparingDouble(AuctionListing::unitPrice));
 
     private final String displayName;
     private final Comparator<AuctionListing> comparator;

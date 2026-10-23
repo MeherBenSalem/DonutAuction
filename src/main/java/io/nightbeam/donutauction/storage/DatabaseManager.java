@@ -38,6 +38,8 @@ public final class DatabaseManager {
             hikariConfig.addDataSourceProperty("foreign_keys", "on");
             hikariConfig.addDataSourceProperty("journal_mode", "WAL");
             hikariConfig.addDataSourceProperty("synchronous", "NORMAL");
+            // Two pooled connections may write at once (a purchase and a bid): wait instead of failing.
+            hikariConfig.addDataSourceProperty("busy_timeout", "5000");
         } else {
             String host = config.getString("storage.mysql.host", "localhost");
             int port = config.getInt("storage.mysql.port", 3306);

@@ -35,7 +35,7 @@ jobs:
           cache: maven
       - run: mvn -B -q test
       - name: Native MySQL history, row claims and legacy schema migration
-        run: mvn -B -q -Dauction.test.mysql.url=jdbc:mysql://localhost:3306/donutauction_test -Dtest=TransactionHistoryRepositoryTest test
+        run: mvn -B -q -Dauction.test.mysql.url=jdbc:mysql://localhost:3306/donutauction_test -Dtest='TransactionHistoryRepositoryTest,AuctionRepositoryClaimsTest' test
       - uses: actions/setup-node@v4
         with:
           node-version: "24"

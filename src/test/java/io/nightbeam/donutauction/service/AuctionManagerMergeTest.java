@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 class AuctionManagerMergeTest {
 
@@ -22,11 +23,13 @@ class AuctionManagerMergeTest {
 
         AuctionListing localSold = listing(auctionId, seller, AuctionStatus.SOLD, now + 50);
         manager.upsert(localSold);
+        // Settled rows leave the cache, but a late, older ACTIVE snapshot must not bring them back.
+        assertNull(manager.findCached(auctionId));
 
         AuctionListing staleActive = listing(auctionId, seller, AuctionStatus.ACTIVE, now);
         manager.mergeRemote(staleActive);
-        assertEquals(AuctionStatus.SOLD, manager.findCached(auctionId).status());
-        assertEquals(now + 50, manager.findCached(auctionId).updatedAt());
+        assertNull(manager.findCached(auctionId));
+        assertEquals(0, manager.browse(new AuctionBrowseRequest(1, null, null, ""), now + 60).totalResults());
 
         AuctionListing newerExpired = listing(auctionId, seller, AuctionStatus.EXPIRED, now + 80);
         manager.mergeRemote(newerExpired);

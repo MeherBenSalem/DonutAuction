@@ -4,13 +4,18 @@
 #  Edit this file to translate the entire plugin into your language.
 #  No recompile needed — run:  /ah reload
 #
-#  Formatting:
-#    &0–&f, &k–&o, &l, &m, &n, &r   standard Minecraft color/format codes
+#  Formatting (mix freely):
+#    &0–&f, &k–&o, &l, &m, &n, &r    legacy color/format codes
+#    &#RRGGBB                         hex colors
+#    <gold>, <#ffaa00>, <gradient:#f9d423:#ff4e50>text</gradient>, <bold> ...   MiniMessage
 #
 #  Placeholders:
-#    %name% %price% %seller% …       named placeholders in templates
+#    %name% %price% %seller% …       named placeholders in templates. Values are inserted as plain
+#                                    text, so player-made names can never add colors or click events.
+#  Item names (%item%) are shown in each player's own client language unless the item was renamed.
 #
 #  Inventory titles should stay short (ideally under ~32 characters).
+#  Lore lines are gray and not italic unless you color them.
 # ─────────────────────────────────────────────────────────────────────────────
 
 prefix: '&6&lAuctionHouse &8» '
@@ -21,13 +26,18 @@ unknown-seller: Unknown
 
 # ── Commands ──────────────────────────────────────────────────────────────────
 command:
+  no-permission: '&cYou do not have permission to do that.'
   no-permission-use: '&cYou do not have permission to use the auction house.'
   no-permission-sell: '&cYou do not have permission to sell items.'
   no-permission-reload: '&cYou do not have permission to reload this plugin.'
   no-permission-fastbuy: '&cYou do not have permission to use fast buy.'
   no-permission-fastsell: '&cYou do not have permission to use fast sell.'
-  usage-sell: '&cUsage: /ah sell <price>'
+  usage-sell: '&cUsage: /ah sell <price> [auction]'
+  usage-auction: '&cUsage: /ah auction <starting bid>'
+  usage-view: '&cUsage: /ah view <player>'
+  usage-open: '&cUsage: /ah open <player> [browse|items|history|search <text>]'
   invalid-price: '&cInvalid price.'
+  auctions-disabled: '&cYou cannot start auctions here; use /ah sell <price>.'
   config-reloaded: '&aDonutAuctionHouse configuration reloaded.'
   limits-disabled: '&eAuction limits are not enabled.'
   limit-current: '&6Your current auction limit: %limit%'
@@ -38,38 +48,136 @@ command:
   fast-sell-toggle: '&eFast sell %state%&e.'
   state-enabled: '&aenabled'
   state-disabled: '&cdisabled'
-  search-prompt: '&eType an item name in chat to search the auction house.'
+  search-prompt: '&eType an item name, enchantment or player in chat. Type &6cancel &eto go back.'
+  input-timeout: '&7No answer, so nothing was changed.'
+  cancel-word: cancel
   auction-limit-reached: '&cYou have reached your auction limit of %limit% listings.'
+  no-listings-from: '&c%player% has nothing for sale.'
+  player-offline: '&c%player% is not online.'
+  price-disabled: '&cPrice insight is turned off on this server.'
+  price-failed: '&cCould not load prices right now.'
+  price-header: '&6Market price of %item%&6:'
+  price-average: ' &7Average: &6%price% &7each &8(%sales% sales in %days% days)'
+  price-range: ' &7Range: &f%low% &7- &f%high% &7each'
+  price-stack: ' &7Your stack of %amount%: about &a%price%'
+  price-none: ' &7No sales in the last %days% days.'
+  price-lowest: ' &7Cheapest on sale now: &a%price% &7each &8(%count% listed)'
+  help:
+    - '&6&lAuction House &8- &7commands'
+    - ' &e/ah &8- &7browse the auction house'
+    - ' &e/ah sell <price> &8- &7sell the held item (&f1k&7, &f2.5m&7 and &f1b &7work)'
+    - ' &e/ah auction <starting bid> &8- &7auction the held item'
+    - ' &e/ah search <text> &8- &7find items by name, enchantment or seller'
+    - ' &e/ah view <player> &8- &7see a player''s listings'
+    - ' &e/ah price &8- &7recent prices of the held item'
+    - ' &e/ah collect &8- &7your listings and items to collect'
+    - ' &e/ah history &8- &7your purchases and sales'
+
+# ── Staff ─────────────────────────────────────────────────────────────────────
+admin:
+  not-active: '&cThat listing is not on sale.'
+  removed: '&aRemoved %item% &aby &e%seller%&a. The item went to their collection.'
+  failed: '&cCould not remove the listing: %error%'
+  bad-id: '&cThat is not an auction ID.'
+  usage-view: '&cUsage: /ah admin view <player> (in game)'
+  usage-remove: '&cUsage: /ah admin remove <auction id>'
+  usage-purge: '&cUsage: /ah admin purge <days>  (deletes settled history older than that)'
+  purged: '&aDeleted %count% history row(s) older than %days% days.'
+  info-header: '&6DonutAuctionHouse %version%'
+  info-storage: ' &7Storage: &f%storage% &8| &7Cached rows: &f%rows%'
+  info-active: ' &7Active listings: &f%count%'
+  info-unreadable: ' &7Unreadable rows: &f%count% &8(items from a newer Minecraft version)'
+  info-server: ' &7Server: &f%server%'
+  help:
+    - '&6&lAuction House &8- &7staff commands'
+    - ' &e/ah admin view <player> &8- &7see and remove a player''s listings'
+    - ' &e/ah admin remove <id> &8- &7remove one listing (the item goes to the seller''s collection)'
+    - ' &e/ah admin info &8- &7storage and health'
+    - ' &e/ah admin purge <days> &8- &7delete settled history'
+    - ' &e/ah open <player> [browse|items|history|search <text>] &8- &7open a menu for a player (NPCs, menus)'
+    - ' &e/ah reload &8- &7reload config.yml and messages.yml'
+    - ' &7Shift-right-click a listing in /ah to remove it.'
+
+# ── Selling rules ─────────────────────────────────────────────────────────────
+restrictions:
+  world: '&cThe auction house cannot be used in this world.'
+  gamemode: '&cYou cannot list items in %gamemode% mode.'
+  cooldown: '&cWait %seconds%s before listing again.'
+  blacklisted: '&cThat item cannot be sold on the auction house.'
 
 # ── Service / action results ──────────────────────────────────────────────────
 service:
   hold-item: '&cHold the item you want to list.'
   invalid-item: '&cThe item is invalid.'
   price-below-min: '&cMinimum auction price is &6%min_price%&c.'
+  price-above-max: '&cThe highest price for that item is &6%max_price%&c.'
   price-invalid: '&cPrice must be greater than 0 and below the configured limit.'
   sell-confirmation-invalid: '&cThat sell confirmation is no longer valid.'
-  listed: '&aListed %item% for &6%price%&a.'
+  listing-blocked: '&cYou cannot list that item right now.'
+  fee-insufficient: '&cListing costs a fee of &6%fee%&c.'
+  fee-paid: ' &7(fee %fee%)'
+  listed: '&aListed &f%amount%x %item% &afor &6%price%&a.'
+  listed-auction: '&aYour auction for &f%amount%x %item% &astarted at &6%price%&a.'
+  relisted: '&aRelisted %item% &afor &6%price%&a.'
   create-failed: '&cFailed to create the auction. Your item was returned.'
   auction-unavailable: '&cThat auction is no longer available.'
   cannot-buy-own: '&cYou cannot buy your own auction.'
+  place-a-bid: '&cThat item is up for auction. Place a bid instead.'
   auction-expired: '&cThat auction has expired.'
   auction-processing: '&cThat auction is already being processed.'
+  purchase-blocked: '&cYou cannot buy that right now.'
   insufficient-funds: '&cYou do not have enough money.'
   withdraw-failed: '&cUnable to withdraw funds: %error%'
   pay-seller-failed: '&cUnable to pay the seller right now.'
-  purchased: '&aPurchased %item% for &6%price%&a.'
+  purchased: '&aPurchased &f%amount%x %item% &afor &6%price%&a.'
+  purchased-to-collection: '&aPurchased &f%amount%x %item% &afor &6%price%&a. Your inventory is full, so it waits in &e/ah collect&a.'
   purchase-completed: '&aPurchase completed.'
   purchase-failed: '&cPurchase failed. Your money has been refunded.'
+  cannot-bid-own: '&cYou cannot bid on your own auction.'
+  already-leading: '&eYou already have the highest bid.'
+  bid-too-low: '&cThe next bid must be at least &6%min_bid%&c.'
+  bid-blocked: '&cYou cannot bid on that right now.'
+  bid-placed: '&aYou bid &6%bid% &aon %item%&a. You are the highest bidder.'
+  bid-extended: ' &7(The auction was extended.)'
+  bid-outdated: '&cSomeone bid first. Your money was returned; check the new price and try again.'
   auction-not-found: '&cAuction not found.'
   only-active-cancel: '&cOnly active auctions can be cancelled.'
+  cannot-cancel-bids: '&cAn auction with bids cannot be cancelled.'
   cancelled: '&aAuction cancelled and item returned.'
+  cancelled-to-collection: '&aAuction cancelled. Your inventory is full, so the item waits in &e/ah collect&a.'
   cancel-failed: '&cFailed to cancel auction. Please try again.'
   already-collected: '&cThat auction has already been collected.'
   sale-collected: '&aSale marked as collected. Payment was delivered through Vault at purchase time.'
   collection-update-failed: '&cUnable to update the collection state.'
   collection-update-failed-retry: '&cUnable to update the collection state. Please try again.'
   item-returned: '&aReturned your unsold item.'
+  delivered: '&aCollected %item%&a.'
   nothing-to-collect: '&cNothing to collect for that auction.'
+  inventory-full: '&cMake room in your inventory first.'
+  inventory-full-left: '&eYour inventory is full. %count% item(s) still wait here.'
+
+# ── Notifications ─────────────────────────────────────────────────────────────
+notify:
+  sold: '&a✔ &fYour %item% &7x%amount% &fsold to &e%buyer% &ffor &6%price%&f.%tax_note%'
+  tax-note: ' &7(tax %tax%)'
+  sold-title: '<gradient:#f9d423:#ff9f43><bold>ITEM SOLD</bold></gradient>'
+  sold-subtitle: '%item% &7for &6%price%'
+  outbid: '&e⚠ &fYou were outbid on %item%&f: the bid is now &6%bid%&f. Your &6%refund% &fwas refunded.'
+  bid-returned: '&eThe auction for %item% &ewas removed by staff. Your bid of &6%refund% &ewas returned.'
+  new-bid: '&a%bidder% &7bid &6%bid% &7on your %item%&7.'
+  won: '&a★ &fYou won %item% &ffor &6%price%&f! It waits in &e/ah collect&f.'
+  expired: '&7Your %item% &7did not sell. Reclaim it with &e/ah collect&7.'
+  removed: '&cA staff member removed your %item%&c. Reclaim it with &e/ah collect&c.'
+  summary-header: '&6While you were away, &e%count% &6of your items sold for &a%total%&6:'
+  summary-line: ' &8• &f%item% &7x%amount% &8→ &e%buyer% &7for &6%price%'
+  summary-more: ' &8• &7and %count% more in &e/ah history'
+  waiting: '&eYou have &6%count% &eitem(s) waiting in &6/ah collect&e.'
+  delivered: '&a%count% item(s) from the auction house were added to your inventory.'
+
+# ── Broadcasts ────────────────────────────────────────────────────────────────
+broadcast:
+  new-listing: '&8[&6AH&8] &e%seller% &7listed &f%amount%x %item% &7for &6%price%&7. &e/ah'
+  new-auction: '&8[&6AH&8] &e%seller% &7started an auction for &f%amount%x %item% &7at &6%price%&7. &e/ah'
 
 # ── Auction status labels ─────────────────────────────────────────────────────
 status:
@@ -85,10 +193,11 @@ status:
 
 # ── Sort modes ────────────────────────────────────────────────────────────────
 sort:
-  highest-price: Highest Price
-  lowest-price: Lowest Price
-  latest: Latest
   recently-listed: Recently Listed
+  latest: Ending Soon
+  lowest-price: Lowest Price
+  highest-price: Highest Price
+  lowest-unit-price: Lowest Price Each
 
 # ── Filter categories ─────────────────────────────────────────────────────────
 filter:
@@ -102,12 +211,19 @@ filter:
     books: Books
     ingredients: Ingredients
     utilities: Utilities
+  types:
+    all: Everything
+    buy-now: Buy It Now
+    auctions: Auctions
   filter-lore: Filter auction listings
-  clear-name: Clear Filter
+  clear-name: '&cClear Filter'
   clear-lore: Show all listings
+  type-name: '&eListing Type'
+  type-lore: '&eClick to switch between everything, Buy It Now and auctions'
 
 # ── Listing durations (sell GUI) ─────────────────────────────────────────────
 duration:
+  1-hour: 1 Hour
   6-hours: 6 Hours
   12-hours: 12 Hours
   1-day: 1 Day
@@ -118,31 +234,33 @@ duration:
 # ── GUI common ────────────────────────────────────────────────────────────────
 gui:
   history:
-    entry: Transaction History
+    entry: '&eTransaction History'
     entry-lore: View your completed purchases and sales
     title: '&6Transaction History'
     bought: Bought
     sold: Sold
-    refresh: Refresh History
+    refresh: '&eRefresh History'
     count: '%count% completed transactions'
     loading: Loading history...
     empty: No completed transactions
     error: Unable to load history. Click Refresh to retry.
     unavailable-item: Item details unavailable
-    price: '&7Price: %price%'
-    date: '&7Date: %date%'
-    seller: '&7Seller: %name%'
-    buyer: '&7Buyer: %name%'
+    price: '&7Price: &6%price%'
+    tax: '&7Tax: &c%tax% &8(you received %net%)'
+    auction: '&dWon at auction'
+    date: '&7Date: &f%date%'
+    seller: '&7Seller: &f%name%'
+    buyer: '&7Buyer: &f%name%'
     id: '&8Transaction: %id%'
     read-only: '&8Completed transaction - read only'
   common:
-    cancel: Cancel
-    selected: Selected
+    cancel: '&cCancel'
+    selected: '&aSelected'
     click-to-select: Click to select
-    back-to-auction: Back to Auction
+    back-to-auction: '&eBack to Auction'
     back-to-auction-lore: Return to the auction browser
-    previous-page: Previous Page
-    next-page: Next Page
+    previous-page: '&ePrevious Page'
+    next-page: '&eNext Page'
     go-back: Go back
     no-previous-page: No previous page
     open-next-page: Open next page
@@ -158,54 +276,139 @@ gui:
 
   titles:
     auction: '&6ᴀᴜᴄᴛɪᴏɴ'
+    seller: '&6ᴀᴜᴄᴛɪᴏɴ • %seller%'
     filter: '&6ᴀᴜᴄᴛɪᴏɴ • ғɪʟᴛᴇʀ'
-    your-items: '&6ᴀᴄᴛɪᴏɴ • ʏᴏᴜʀ ɪᴛᴇᴍꜱ'
+    your-items: '&6ᴀᴜᴄᴛɪᴏɴ • ʏᴏᴜʀ ɪᴛᴇᴍꜱ'
+    admin-items: '&cꜱᴛᴀꜰꜰ • %player%'
     confirm-purchase: '&6ᴄᴏɴꜰɪʀᴍ ᴘᴜʀᴄʜᴀꜱᴇ'
     sell: '&6ꜱᴇʟʟ ɪᴛᴇᴍ'
+    sell-auction: '&6ꜱᴛᴀʀᴛ ᴀᴜᴄᴛɪᴏɴ'
+    bid: '&6ᴘʟᴀᴄᴇ ᴀ ʙɪᴅ'
 
   auction:
-    price-sort: Price Sort
-    click-cycle-sort: Click to cycle sorting
-    filter: Filter
-    click-change-category: Click to change category
-    refresh-name: Auction
-    refresh-lore: Refresh the auction house
-    search: Search
-    type-item-name: Type an item name in chat
-    your-items: Your Items
-    your-items-lore: View active, sold, and expired listings
-    sell-held-item: Sell Held Item
+    price-sort: '&ePrice Sort'
+    sort-option: '&7  %mode%'
+    sort-selected: '&a▶ %mode%'
+    click-cycle-sort: '&eClick to cycle sorting'
+    filter: '&eFilter'
+    type-value: 'Showing: %value%'
+    click-change-category: '&eClick to change category'
+    refresh-name: '&6Auction House'
+    refresh-lore: '&eClick to refresh'
+    search: '&eSearch'
+    seller-filter: 'Seller: %seller%'
+    type-item-name: '&eClick to search by name, enchant or seller'
+    search-clear: '&7Right-click to clear'
+    your-items: '&eYour Items'
+    your-items-lore: View your listings and collect items
+    your-items-count: 'Active: %active%/%limit%'
+    your-items-waiting: '&a%count% item(s) to collect'
+    sell-held-item: '&aSell Held Item'
     sell-held-lore: List the item in your main hand
     sell-held-hint: Uses your last sell price when available
     next-page-lore-available: Open the next page
+    empty: '&7Nothing for sale yet'
+    empty-lore: Hold an item and use /ah sell <price>
+    no-results: '&cNothing matches'
+    no-results-lore: Clear the search or filter to see everything
 
   sell:
-    decrease-price: Decrease Price
-    increase-price: Increase Price
-    price-display: 'Price: %price%'
-    confirm-listing: Confirm Listing
+    decrease-price: '&cDecrease Price'
+    increase-price: '&aIncrease Price'
+    shift-step: '&7Shift-click: %step%'
+    price-display: '&6Price: %price%'
+    starting-bid-display: '&6Starting bid: %price%'
+    type-price: '&eClick to type an exact price (1k, 2.5m...)'
+    price-prompt: '&eType the price in chat (for example &6250&e, &61.5k &eor &62m&e). Type &6cancel &eto go back.'
+    price-out-of-range: '&cThe price must be between &6%min% &cand &6%max%&c.'
+    confirm-listing: '&aConfirm Listing'
     list-for-price: List this item for %price%
+    start-at-price: Start the auction at %price%
+    fee-line: '&7Listing fee: &c%fee%'
     cancel-lore: Go back without listing
+    type-bin: '&aBuy It Now'
+    type-bin-lore: Buyers pay your price instantly
+    type-auction: '&6Auction'
+    type-auction-lore: Starts at your price; the highest bid wins
+    type-switch: '&eClick to switch'
+    insight: '&bPrice Insight'
+    insight-disabled: '&7Price insight is turned off'
+    insight-sales: '&7Sold in the last %days% days: &f%sales%'
+    insight-average: '&7Average: &6%price% &7each'
+    insight-range: '&7Range: &f%low% &7- &f%high%'
+    insight-last: '&7Last sale: &f%price% &7each'
+    insight-none: '&7No recent sales of this item'
+    insight-lowest: '&7Cheapest on sale: &a%price% &7each'
+    insight-yours: '&7Your price: &e%price% &7each'
+    fees: '&eFees & Earnings'
+    fees-listing: '&7Listing fee: &f%fee%'
+    fees-tax: '&7Sales tax: &f%percent%%'
+    fees-receive: '&7You receive: &a%amount%'
+    fees-receive-bid: '&7You receive: &aat least %amount%'
+    free: Free
+
+  bid:
+    minimum: '&eBid %price%'
+    raise: '&eBid %price% &7(+10%)'
+    big-raise: '&eBid %price% &7(+25%)'
+    click: '&aClick to bid'
+    custom: '&eCustom Amount'
+    custom-lore: Type any amount of at least %price%
+    prompt: '&eType your bid in chat (for example &61500 &eor &62.5k&e). Type &6cancel &eto go back.'
+    how: '&bHow bidding works'
+    how-1: Your bid is held until you are outbid
+    how-2: If someone outbids you, it is refunded at once
+    how-3: Late bids extend the auction by %seconds%s
+    how-4: The winner collects the item in /ah collect
 
   confirm-purchase:
-    confirm: Confirm Purchase
+    confirm: '&aConfirm Purchase'
     click-to-buy: Click to buy this item
     cancel-lore: Go back to the auction house
     item-price: '&6Price: %price%'
+    after: '&7Balance after: &f%balance%'
+    cannot-afford: '&cYou cannot afford this'
+
+  your-items:
+    empty: '&7No listings yet'
+    empty-lore: Hold an item and use /ah sell <price>
+    collect-all: '&aCollect All'
+    collect-all-lore: Take every waiting item that fits (%count%)
+    collected: '&aCollected %count% item(s).'
+    summary: '&bYour Trading'
+    summary-active: '&7Active listings: &f%active%/%limit%'
+    summary-sold: '&7Items sold: &f%count% &8(%amount%)'
+    summary-bought: '&7Items bought: &f%count% &8(%amount%)'
 
   listing-lore:
     separator: '&8————————————————'
-    price: '&7Price: %price%'
-    seller: '&7Seller: %seller%'
-    expires-in: '&7Expires in: %time%'
+    price: '&7Price: &6%price%'
+    price-each: '&8(%price% each)'
+    starting-bid: '&7Starting bid: &6%price%'
+    current-bid: '&7Current bid: &6%price% &8(%bids% bids)'
+    top-bidder: '&7Top bidder: &f%bidder%'
+    min-bid: '&7Next bid: &e%price%'
+    seller: '&7Seller: &f%seller%'
+    expires-in: '&7Expires in: &f%time%'
+    ends-in: '&7Ends in: &f%time%'
     contents: '&bContents: %count% items'
     preview-hint: '&8Right-click to preview'
     click-purchase: '&aClick to purchase.'
-    time-remaining: '&7Time remaining: %time%'
+    click-bid: '&aClick to bid'
+    leading: '&aYou have the highest bid'
+    own-listing: '&eThis is your listing'
+    admin-remove: '&cShift-right-click to remove (staff)'
+    admin-click-remove: '&cClick to remove (staff)'
+    time-remaining: '&7Time remaining: &f%time%'
     status: '&7Status: %status%'
+    has-bids: '&7Auctions with bids cannot be cancelled'
+    bought-for: '&aBought for &6%price%'
+    won-for: '&aWon for &6%price%'
+    action-collect: '&eClick to collect'
     action-cancel: '&aClick to cancel auction.'
     action-collect-proceeds: '&aClick to mark proceeds collected.'
     action-reclaim: '&aClick to reclaim item.'
+    action-relist: '&eRight-click to relist for %price%'
     action-already-collected: '&7Already collected.'
     balance: '&bYour balance: %balance%'
 

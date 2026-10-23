@@ -6,15 +6,16 @@ folia-supported: true
 authors:
   - NightBeam Studio
 website: https://github.com/MeherBenSalem/DonutAuction
-description: Standalone auction house plugin with Vault/VaultUnlocked economy and optional DonutCore integration.
+description: Auction house with Buy It Now and bidding, sales tax, price insight, Discord webhooks and PlaceholderAPI, for Paper and Folia.
 softdepend:
   - Vault
   - VaultUnlocked
   - DonutCore
+  - PlaceholderAPI
 commands:
   ah:
     description: Opens the auction house.
-    usage: /ah [sell <price>|cancel|reload|limit|fastbuy|fastsell]
+    usage: /ah [sell <price>|auction <bid>|search <text>|view <player>|price|collect|history|help]
     aliases: [auctionhouse]
   auction:
     description: Opens the auction house.
@@ -35,8 +36,16 @@ permissions:
   donutauction.sell:
     description: Allows selling items through the auction house.
     default: true
+  donutauction.sell.auction:
+    description: Allows starting auctions with bids (bidding.permission).
+    default: true
   donutauction.admin:
-    description: Administrative auction controls.
+    description: Staff controls - /ah admin, /ah reload, /ah open and removing listings.
+    default: op
+    children:
+      donutauction.admin.open: true
+  donutauction.admin.open:
+    description: Allows /ah open <player> for NPCs and menu plugins.
     default: op
   donutauction.fastbuy:
     description: Allows toggling fast buy mode.
@@ -47,6 +56,27 @@ permissions:
   donutauction.update.notify:
     description: Notifies the player about available updates.
     default: op
+  donutauction.broadcast.receive:
+    description: Receives new-listing broadcasts (broadcast.new-listings).
+    default: true
+  donutauction.blacklist.bypass:
+    description: May list blacklisted items.
+    default: op
+  donutauction.restrictions.bypass:
+    description: May list in disabled worlds and blocked game modes.
+    default: op
+  donutauction.cooldown.bypass:
+    description: Ignores auction.cooldown-seconds.
+    default: op
+  donutauction.fee.exempt:
+    description: Pays no listing fee.
+    default: false
+  donutauction.tax.vip:
+    description: Example sales-tax tier (economy.sales-tax.permissions).
+    default: false
+  donutauction.tax.exempt:
+    description: Pays no sales tax (example tier).
+    default: false
   donutauction.limit.5:
     description: Auction limit of 5 listings.
     default: true

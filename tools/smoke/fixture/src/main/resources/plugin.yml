@@ -1,0 +1,15 @@
+name: AuctionLabFixture
+version: 1.0.0
+main: io.nightbeam.auctionlab.AuctionLabPlugin
+api-version: '1.20'
+folia-supported: true
+description: Test-only fixture for the DonutAuctionHouse smoke matrix. Never install on a real server.
+softdepend: [Vault, VaultUnlocked]
+loadbefore: [DonutAuctionHouse]
+commands:
+  lab:
+    description: Smoke-test helpers.
+    permission: auctionlab.admin
+permissions:
+  auctionlab.admin:
+    default: op

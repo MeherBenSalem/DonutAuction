@@ -46,8 +46,9 @@ class TransactionHistoryRepositoryTest {
     UUID row(UUID owner, UUID purchaser, String status, long time, boolean completed) throws Exception {
         UUID id = UUID.randomUUID();
         try (Connection connection = source.getConnection(); var statement = connection.prepareStatement(
-                "INSERT INTO auctions VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")) {
-            // Match explicit column order from CREATE TABLE, including the completion flag.
+                "INSERT INTO auctions(auction_id, seller_uuid, buyer_uuid, item_data, price, listing_time, expiration_time,"
+                        + " sold_time, status, seller_claimed, purchase_completed, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")) {
+            // The 1.x columns, including the completion flag; 2.0 columns take their defaults.
             statement.setString(1, id.toString());
             statement.setString(2, owner.toString());
             statement.setString(3, purchaser == null ? null : purchaser.toString());

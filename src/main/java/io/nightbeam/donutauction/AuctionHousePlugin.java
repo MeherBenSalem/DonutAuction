@@ -1,5 +1,6 @@
 package io.nightbeam.donutauction;
 
+import io.nightbeam.donutauction.api.DonutAuctionApi;
 import io.nightbeam.donutauction.command.AuctionCommand;
 import io.nightbeam.donutauction.economy.VaultEconomyProvider;
 import io.nightbeam.donutauction.gui.GuiManager;
@@ -8,6 +9,7 @@ import io.nightbeam.donutauction.hook.HookManager;
 import io.nightbeam.donutauction.listener.AuctionChatListener;
 import io.nightbeam.donutauction.listener.AuctionInventoryListener;
 import io.nightbeam.donutauction.listener.PlayerQuitListener;
+import io.nightbeam.donutauction.service.ApiProvider;
 import io.nightbeam.donutauction.service.AuctionLimitService;
 import io.nightbeam.donutauction.service.AuctionManager;
 import io.nightbeam.donutauction.service.AuctionService;
@@ -33,6 +35,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.plugin.ServicePriority;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public final class AuctionHousePlugin extends JavaPlugin {
@@ -55,6 +58,13 @@ public final class AuctionHousePlugin extends JavaPlugin {
 
     @Override
     public void onEnable() {
+        if (!isPaperFamily()) {
+            getLogger().severe("DonutAuctionHouse needs Paper or a Paper fork (Purpur, Folia, Pufferfish...). "
+                    + "This server (" + Bukkit.getName() + ") is missing Paper's API, so the plugin is disabled. "
+                    + "Paper is a drop-in replacement for Spigot: https://papermc.io/downloads");
+            getServer().getPluginManager().disablePlugin(this);
+            return;
+        }
         saveDefaultConfig();
         saveResourceIfAbsent("messages.yml");
         reloadMessagesConfig();
@@ -73,7 +83,7 @@ public final class AuctionHousePlugin extends JavaPlugin {
         this.databaseManager = DatabaseManager.fromConfig(this);
         this.databaseManager.start();
 
-        this.auctionRepository = new SqlAuctionRepository(databaseManager, schedulerAdapter.asyncExecutor());
+        this.auctionRepository = new SqlAuctionRepository(databaseManager, schedulerAdapter.asyncExecutor(), getLogger());
         this.playerPreferenceRepository = new SqlPlayerPreferenceRepository(databaseManager, schedulerAdapter.asyncExecutor());
 
         this.auctionRepository.initialize().thenCompose(ignored -> playerPreferenceRepository.initialize())
@@ -89,7 +99,7 @@ public final class AuctionHousePlugin extends JavaPlugin {
         this.limitService = new AuctionLimitService(this);
 
         this.messageUtil = new MessageUtil(this);
-        ListingSyncBus listingSyncBus = ListingSyncBusFactory.create(this, auctionRepository, auctionManager);
+        ListingSyncBus listingSyncBus = ListingSyncBusFactory.create(this, auctionRepository);
         this.listingSyncBus = listingSyncBus;
         this.auctionService = new AuctionService(
                 this, schedulerAdapter, economyProvider, auctionRepository, auctionManager, donutCoreHook,
@@ -104,13 +114,47 @@ public final class AuctionHousePlugin extends JavaPlugin {
 
         registerCommands();
         registerListeners();
+        getServer().getServicesManager().register(DonutAuctionApi.class,
+                new ApiProvider(auctionService, auctionManager, guiManager, schedulerAdapter), this, ServicePriority.Normal);
+        registerPlaceholders();
+        // Players already online after /reload or a plugin manager reload.
+        Bukkit.getOnlinePlayers().forEach(player -> preferenceManager.get(player.getUniqueId()));
         startMetrics();
 
-        getLogger().info("DonutAuctionHouse enabled using " + databaseManager.getDatabaseType().name() + " storage.");
+        getLogger().info("DonutAuctionHouse enabled using " + databaseManager.getDatabaseType().name() + " storage"
+                + (getConfig().getBoolean("bidding.enabled", true) ? ", Buy It Now and auctions" : ", Buy It Now")
+                + (getConfig().getBoolean("economy.sales-tax.enabled", false) ? ", sales tax on" : "") + ".");
+    }
+
+    /** Paper's API (Adventure components, region schedulers) is required; plain Spigot/Bukkit lacks it. */
+    private static boolean isPaperFamily() {
+        try {
+            Class.forName("io.papermc.paper.event.player.AsyncChatEvent");
+            Class.forName("net.kyori.adventure.text.minimessage.MiniMessage");
+            return true;
+        } catch (ClassNotFoundException | LinkageError missing) {
+            return false;
+        }
+    }
+
+    private void registerPlaceholders() {
+        if (!getConfig().getBoolean("placeholderapi.enabled", true)
+                || getServer().getPluginManager().getPlugin("PlaceholderAPI") == null
+                || !getServer().getPluginManager().isPluginEnabled("PlaceholderAPI")) {
+            return;
+        }
+        try {
+            if (new io.nightbeam.donutauction.hook.AuctionPlaceholders(this, auctionService, limitService).register()) {
+                getLogger().info("PlaceholderAPI found: %donutauction_...% placeholders registered.");
+            }
+        } catch (LinkageError | RuntimeException exception) {
+            getLogger().warning("Could not register PlaceholderAPI placeholders: " + exception.getMessage());
+        }
     }
 
     @Override
     public void onDisable() {
+        getServer().getServicesManager().unregisterAll(this);
         if (preferenceManager != null) {
             preferenceManager.saveAll();
         }
@@ -154,6 +198,10 @@ public final class AuctionHousePlugin extends JavaPlugin {
         try {
             Metrics metrics = new Metrics(this, 33523);
             metrics.addCustomChart(new SimplePie("server_software", () -> Bukkit.getServer().getName()));
+            metrics.addCustomChart(new SimplePie("storage_type", () -> databaseManager.getDatabaseType().name()));
+            metrics.addCustomChart(new SimplePie("bidding", () -> String.valueOf(getConfig().getBoolean("bidding.enabled", true))));
+            metrics.addCustomChart(new SimplePie("sales_tax", () -> String.valueOf(getConfig().getBoolean("economy.sales-tax.enabled", false))));
+            metrics.addCustomChart(new SimplePie("discord_webhook", () -> String.valueOf(getConfig().getBoolean("discord.enabled", false))));
         } catch (Throwable throwable) {
             getLogger().warning("bStats metrics failed to load (plugin will continue): " + throwable.getMessage());
         }
@@ -165,6 +213,10 @@ public final class AuctionHousePlugin extends JavaPlugin {
 
     public MessageUtil messages() {
         return messageUtil;
+    }
+
+    public AuctionManager auctionManager() {
+        return auctionManager;
     }
 
     public FileConfiguration getMessagesConfig() {
@@ -200,51 +252,11 @@ public final class AuctionHousePlugin extends JavaPlugin {
         }
     }
 
+    /**
+     * New settings from the bundled config.yml are added to the server's file; existing values are never
+     * changed. JavaPlugin already uses the bundled file as defaults, so copying them is enough.
+     */
     public void applyConfigDefaults() {
-        getConfig().addDefault("price-display.locale", "en-US");
-        getConfig().addDefault("price-display.compact.enabled", false);
-        getConfig().addDefault("price-display.compact.precision", 1);
-        getConfig().addDefault("price-display.compact.thousand-suffix", "k");
-        getConfig().addDefault("price-display.compact.million-suffix", "M");
-        getConfig().addDefault("price-display.compact.template", "%amount%%suffix% %currency%");
-        getConfig().addDefault("history.timezone", "UTC");
-        getConfig().addDefault("history.date-format", "yyyy-MM-dd HH:mm z");
-        getConfig().addDefault("auction.min-price", 10.0D);
-        getConfig().addDefault("messages.price-below-min", "&cMinimum auction price is &6%min_price%&c.");
-        getConfig().addDefault("auction-lore.mode", "APPEND");
-        getConfig().addDefault("auction-lore.separator", true);
-        getConfig().addDefault("auction-limits.enabled", true);
-        getConfig().addDefault("auction-limits.default-limit", 5);
-        getConfig().addDefault("auction-limits.permissions.donutauction.limit.10", 10);
-        getConfig().addDefault("auction-limits.permissions.donutauction.limit.25", 25);
-        getConfig().addDefault("auction-limits.permissions.donutauction.limit.50", 50);
-        getConfig().addDefault("auction-limits.permissions.donutauction.limit.100", 100);
-        getConfig().addDefault("auction-limits.permissions.donutauction.limit.unlimited", -1);
-        getConfig().addDefault("auction-slots.enabled", true);
-        getConfig().addDefault("auction-slots.permissions.donutauction.slots.10", 10);
-        getConfig().addDefault("auction-slots.permissions.donutauction.slots.25", 25);
-        getConfig().addDefault("auction-slots.permissions.donutauction.slots.50", 50);
-        getConfig().addDefault("auction-slots.permissions.donutauction.slots.100", 100);
-        getConfig().addDefault("fast-buy.enabled", true);
-        getConfig().addDefault("fast-buy.default-state", false);
-        getConfig().addDefault("fast-buy.require-permission", true);
-        getConfig().addDefault("fast-sell.enabled", true);
-        getConfig().addDefault("fast-sell.default-state", false);
-        getConfig().addDefault("fast-sell.require-permission", true);
-        getConfig().addDefault("shulker-support.enabled", true);
-        getConfig().addDefault("shulker-support.preview-contents", true);
-        getConfig().addDefault("update-checker.enabled", true);
-        getConfig().addDefault("update-checker.notify-console", true);
-        getConfig().addDefault("update-checker.notify-admins", true);
-        getConfig().addDefault("update-checker.check-interval-hours", 12);
-        getConfig().addDefault("metrics.enabled", true);
-        getConfig().addDefault("debug.pending-sales", false);
-        getConfig().addDefault("sync.poll-interval-seconds", 3);
-        getConfig().addDefault("sync.redis.enabled", false);
-        getConfig().addDefault("sync.redis.host", "localhost");
-        getConfig().addDefault("sync.redis.port", 6379);
-        getConfig().addDefault("sync.redis.password", "");
-        getConfig().addDefault("sync.redis.channel", "donutauction:listings");
         getConfig().options().copyDefaults(true);
         saveConfig();
     }
