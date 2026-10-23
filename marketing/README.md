@@ -26,13 +26,32 @@ A new release name or number goes in `RELEASE` in `source/render.cjs` and in the
 
 ## Images
 
-IMAGES_TABLE
+| File | Size | Use |
+| --- | --- | --- |
+| `images/banner.png` | 1800×600, 819 KB | Description header: the market with a live bid, "2.0 · The Market Update", platforms and versions |
+| `images/icon.png` | 512×512, 104 KB | Project avatar: the pixel donut with a gold "$ AH" tag |
+| `images/card-market.png` | 1600×900, 1073 KB | The market with a listing tooltip, plus the shulker preview |
+| `images/card-selling.png` | 1600×900, 914 KB | The sell menu: Buy It Now or Auction, fees and earnings |
+| `images/card-auctions.png` | 1600×900, 1046 KB | An auction with a live bid, plus the bid menu |
+| `images/card-insight.png` | 1600×900, 1027 KB | Price insight in the sell menu, plus `/ah price` |
+| `images/card-notifications.png` | 1600×900, 1319 KB | The ITEM SOLD title and the sale message in chat |
+| `images/card-collection.png` | 1600×900, 923 KB | Your Items with an expired listing to reclaim or relist, plus the trading summary |
+| `images/card-economy.png` | 1600×900, 851 KB | The default `economy` section of `config.yml`, plus Fees & Earnings |
+| `images/card-safety.png` | 1600×900, 817 KB | Two servers, one item: the conditional update only one buyer can win |
+| `images/card-integrations.png` | 1600×900, 771 KB | A Discord embed preview, PlaceholderAPI and the developer API |
+| `images/card-staff.png` | 1600×900, 984 KB | The staff tooltip with shift-right-click removal, plus `/ah admin info` console output |
+| `images/card-config.png` | 1600×900, 960 KB | `notify` lines from `messages.yml` and the title they produce |
+| `images/card-compatibility.png` | 1600×900, 853 KB | Every target of the last cross-version run (`source/compat.json`) |
+| `images/header-*.png` | 1400×120, transparent, 66–79 KB | 15 section headings for the description |
+| `images/divider.png` | 1400×40, transparent | Section divider |
+| `images/gifs/buy.gif` | 640×360, 11 s, 983 KB | Opening the market, hovering listings and buying ender pearls |
+| `images/screenshots/*.jpg` | 1920×1080, 357–920 KB | 22 captures: gallery uploads and card art |
 
 ### How the screenshots were captured
 
 Every screenshot and the GIF are unedited captures of the **vanilla Minecraft 1.21.11 client** (launched with portablemc) on a **Paper 1.21.11** server running DonutAuctionHouse 2.0.0. The client ran in a 1920×1080 Xvfb display with software rendering (Mesa llvmpipe) at GUI scale 3, and was driven by [`tools/marketing/capture.mjs`](../tools/marketing/capture.mjs) through console commands and XTEST mouse and keyboard input.
 
-- **The world** is seed 8675309 on peaceful, at noon, in the nearest cherry grove. `scenery.jpg` (and the blurred card backdrop) has the HUD hidden with F1. Every menu shot has the HUD on.
+- **The world** is seed 8675309 on peaceful, at noon, in the nearest cherry grove. Moonbeam stands on a single leaf block five blocks up (out of view), so the camera looks over the grove. Recipes and the diamond advancement were unlocked before the shots, so no toasts cover the menus. `scenery.jpg` (and the blurred card backdrop) has the HUD hidden with F1. Every menu shot has the HUD on.
 - **The market** was filled through the plugin's own API by the smoke-test fixture (`/lab seed 44`): made-up sellers, prices around typical survival values, some enchanted and named items and a "Starter Kit" shulker box. The player Moonbeam listed four items of their own. The sale history behind price insight was written straight into the SQLite database before the second start (nine diamond, netherite and elytra sales in the last day).
 - **Configuration:** defaults, except a 5% sales tax paid to a `ServerBank` account and new-listing broadcasts on. The economy is the fixture's in-memory Vault economy, so prices use Vault's plain `$` formatting.
 - **Real actions:** every purchase, bid and sale in the shots happened. A second player, Kiri (a mineflayer bot), placed the bid shown on the auction and bought Moonbeam's diamonds for the "Item sold" title and chat shots. The staff shots were taken after `/op Moonbeam`.
