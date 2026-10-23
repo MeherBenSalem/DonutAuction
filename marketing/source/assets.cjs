@@ -6,26 +6,54 @@ const HEADERS = {
   market: 'The Market', selling: 'Selling', auctions: 'Auctions', insight: 'Price Insight', notifications: 'Notifications',
   collection: 'Collection', economy: 'Economy & Rules', safety: 'Built to Be Safe', integrations: 'Integrations',
   staff: 'Staff Tools', config: 'Configuration', compatibility: 'Compatibility', commands: 'Commands & Permissions',
-  faq: 'Questions', gallery: 'Gallery', everything: 'Everything Else',
+  faq: 'Questions', gallery: 'Gallery',
 };
 
-// Crop boxes, tuned to the current captures (a chest menu plus the tooltip of the hovered slot).
+// Crop boxes [x, y, w, h] in the 1920x1080 captures: the chest part of each menu (title and rows, not the player's
+// own inventory) joined with the box of the hovered slot's tooltip, plus a 14 px margin. Tooltip boxes were measured
+// from the captures (see marketing/README.md), so new captures may need new boxes.
 const CROP = {
-  browse: [672, 186, 900, 708],
-  browseAuction: [672, 186, 900, 708],
-  shulker: [696, 288, 528, 504],
-  sellType: [672, 222, 900, 640],
-  sellFees: [672, 222, 900, 640],
-  sellInsight: [672, 222, 900, 640],
-  bid: [672, 222, 900, 640],
-  yourItems: [672, 186, 900, 708],
-  summary: [672, 186, 900, 708],
-  admin: [672, 186, 900, 708],
-  chat: [0, 640, 1180, 400],
-  title: [360, 300, 1200, 420],
+  'admin-browse': [682, 193, 691, 435],
+  'bid-menu': [682, 220, 790, 531],
+  'browse-auction-hover': [682, 193, 790, 413],
+  'browse-hover': [682, 193, 556, 465],
+  'sell-fees': [682, 220, 778, 369],
+  'sell-insight': [682, 220, 811, 459],
+  'sell-type': [682, 220, 715, 361],
+  'shulker-preview': [682, 193, 586, 413],
+  'your-items-summary': [682, 193, 820, 477],
+  'your-items': [682, 193, 622, 413],
+  'price-check': [0, 826, 1000, 142],     // chat: the /ah price answer
+  'sold-title': [540, 390, 840, 250],     // the ITEM SOLD title
+  'sold-scene': [360, 260, 1200, 620],    // the ITEM SOLD title over the world (from sold-title.jpg)
+  'sold-chat-line': [0, 903, 990, 64],    // the chat message about the sale (from sold-chat.jpg)
 };
 
-const shotArt = (file, box, width, style = '') => r.framed(r.region(file, ...box, width), style);
+/** Width and height of a crop scaled to fit maxW x maxH. */
+const fitted = (name, maxW, maxH) => {
+  const box = CROP[name];
+  const width = Math.round(Math.min(maxW, maxH * box[2] / box[3]));
+  return [width, Math.round(width * box[3] / box[2])];
+};
+const fileOf = (name) => (name === 'sold-scene' ? 'sold-title' : name === 'sold-chat-line' ? 'sold-chat' : name) + '.jpg';
+
+/** A framed crop of a capture, as wide as possible within maxW x maxH. */
+const shotArt = (name, maxW, maxH, style = '') => r.framed(r.region(fileOf(name), ...CROP[name], fitted(name, maxW, maxH)[0]), style);
+
+// The card art area is 850 x 780. main() sits top-left, inset() bottom-right; each label is pinned to its frame's corner.
+const ART_W = 850;
+const ART_H = 780;
+const main = (name, maxW, maxH, top, text, kind = '') => {
+  return `${shotArt(name, maxW, maxH, `position:absolute;left:0;top:${top}px`)}${text ? r.label(text, `left:24px;top:${top - 22}px`, kind) : ''}`;
+};
+const inset = (name, maxW, maxH, bottom, text, kind = 'gold') => {
+  const [w, h] = fitted(name, maxW, maxH);
+  const left = ART_W + 20 - w;
+  const top = ART_H - bottom - h;
+  // Thin strips (chat lines) get the label above the frame, so it covers no text.
+  const labelTop = h < 200 ? top - 50 : top - 22;
+  return `${shotArt(name, maxW, maxH, `position:absolute;left:${left}px;top:${top}px`)}${text ? r.label(text, `left:${left + 24}px;top:${labelTop}px`, kind) : ''}`;
+};
 
 const card = (key, options) => () => ({ width: 1600, height: 900, file: `card-${key}.png`, html: r.card(options) });
 
@@ -46,9 +74,9 @@ const assets = {
   banner: () => ({ width: 1800, height: 600, html: r.page(1800, 600, `
     ${r.backdrop(0.5, 6)}
     ${r.sprinkles(60, 0.4)}
-    <div style="position:absolute;left:900px;top:-40px;width:1120px;height:700px;perspective:1700px">
+    <div style="position:absolute;left:870px;top:-40px;width:1120px;height:700px;perspective:1700px">
       <div style="transform:rotateY(-17deg) rotateX(4deg) translateZ(0);transform-origin:left center;margin-top:62px">
-        ${shotArt('browse-hover.jpg', CROP.browse, 860)}
+        ${shotArt('browse-auction-hover', 860, 500)}
       </div>
     </div>
     <div style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(14,10,20,.95) 0%,rgba(14,10,20,.86) 40%,rgba(14,10,20,.15) 62%,rgba(14,10,20,0) 100%)"></div>
@@ -75,10 +103,8 @@ const assets = {
       'Right-click a shulker box to look inside',
     ],
     art: `<div style="position:relative;height:780px">
-      ${shotArt('browse-hover.jpg', CROP.browse, 780, 'position:absolute;left:0;top:0')}
-      ${shotArt('shulker-preview.jpg', CROP.shulker, 360, 'position:absolute;right:-10px;bottom:0')}
-      ${r.label('Hover for details', 'left:30px;top:-18px')}
-      ${r.label('Shulker preview', 'right:40px;bottom:250px', 'gold')}
+      ${main('browse-hover', 600, 520, 40, 'Every listing, every detail')}
+      ${inset('shulker-preview', 380, 268, 0, 'Shulker preview')}
     </div>`,
   }),
 
@@ -91,10 +117,8 @@ const assets = {
       'See your tax and earnings before you list',
     ],
     art: `<div style="position:relative;height:780px">
-      ${shotArt('sell-type.jpg', CROP.sellType, 760, 'position:absolute;left:0;top:10px')}
-      ${shotArt('sell-fees.jpg', CROP.sellFees, 430, 'position:absolute;right:-10px;bottom:0')}
-      ${r.label('Buy It Now or Auction', 'left:30px;top:-8px')}
-      ${r.label('Fees &amp; earnings', 'right:40px;bottom:320px', 'gold')}
+      ${main('sell-type', 800, 400, 40, 'Buy It Now or Auction')}
+      ${inset('sell-fees', 520, 250, 0, 'Fees &amp; earnings')}
     </div>`,
   }),
 
@@ -107,9 +131,8 @@ const assets = {
       'Settled exactly once, even across servers',
     ],
     art: `<div style="position:relative;height:780px">
-      ${shotArt('bid-menu.jpg', CROP.bid, 760, 'position:absolute;left:0;top:10px')}
-      ${shotArt('browse-auction-hover.jpg', CROP.browseAuction, 430, 'position:absolute;right:-10px;bottom:0')}
-      ${r.label('Live bid', 'right:40px;bottom:340px', 'gold')}
+      ${main('browse-auction-hover', 760, 400, 40, 'A live bid')}
+      ${inset('bid-menu', 430, 290, 0, 'The bid menu')}
     </div>`,
   }),
 
@@ -122,10 +145,8 @@ const assets = {
       'PlaceholderAPI values for scoreboards and holograms',
     ],
     art: `<div style="position:relative;height:780px">
-      ${shotArt('sell-insight.jpg', CROP.sellInsight, 760, 'position:absolute;left:0;top:0')}
-      ${shotArt('price-check.jpg', CROP.chat, 640, 'position:absolute;right:-10px;bottom:0')}
-      ${r.label('In the sell menu', 'left:30px;top:-18px')}
-      ${r.label('/ah price', 'right:40px;bottom:230px', 'gold')}
+      ${main('sell-insight', 800, 460, 40, 'In the sell menu')}
+      ${inset('price-check', 700, 160, 20, '/ah price')}
     </div>`,
   }),
 
@@ -138,9 +159,8 @@ const assets = {
       'Follows you to whichever server you are on',
     ],
     art: `<div style="position:relative;height:780px">
-      ${shotArt('sold-title.jpg', CROP.title, 860, 'position:absolute;left:0;top:30px')}
-      ${shotArt('sold-chat.jpg', CROP.chat, 700, 'position:absolute;right:-10px;bottom:0')}
-      ${r.label('The moment it sells', 'left:30px;top:12px')}
+      ${main('sold-scene', 830, 500, 70, 'The moment it sells')}
+      ${inset('sold-chat-line', 780, 60, 60, 'And in chat')}
     </div>`,
   }),
 
@@ -153,9 +173,8 @@ const assets = {
       'Your listings, limit and totals at a glance',
     ],
     art: `<div style="position:relative;height:780px">
-      ${shotArt('your-items.jpg', CROP.yourItems, 760, 'position:absolute;left:0;top:0')}
-      ${shotArt('your-items-summary.jpg', CROP.summary, 430, 'position:absolute;right:-10px;bottom:0')}
-      ${r.label('Your Items', 'left:30px;top:-18px')}
+      ${main('your-items', 640, 430, 40, 'Expired? Reclaim or relist')}
+      ${inset('your-items-summary', 480, 280, 0, 'Your trading')}
     </div>`,
   }),
 
@@ -168,9 +187,8 @@ const assets = {
       'Blacklist, disabled worlds, game modes and a cooldown',
     ],
     art: `<div style="position:relative;height:780px">
-      <div style="position:absolute;left:0;top:0">${r.codePanel('config.yml (defaults)', r.yaml(r.yamlSection('src/main/resources/config.yml', 'economy').filter((line) => !line.trim().startsWith('#'))), { width: 700, size: 18 })}</div>
-      ${shotArt('sell-fees.jpg', CROP.sellFees, 470, 'position:absolute;right:-10px;bottom:0')}
-      ${r.label('What the seller sees', 'right:40px;bottom:340px', 'gold')}
+      <div style="position:absolute;left:0;top:10px">${r.codePanel('config.yml (defaults)', r.yaml(r.yamlSection('src/main/resources/config.yml', 'economy').filter((line) => !line.trim().startsWith('#'))), { width: 580, size: 18 })}</div>
+      ${inset('sell-fees', 560, 270, 30, 'What the seller sees')}
     </div>`,
   }),
 
@@ -243,9 +261,8 @@ const assets = {
       'A daily log of every listing, sale and bid',
     ],
     art: `<div style="position:relative;height:780px">
-      ${shotArt('admin-browse.jpg', CROP.admin, 740, 'position:absolute;left:0;top:0')}
-      <div style="position:absolute;right:-10px;bottom:0">${r.codePanel('Console · /ah admin info', r.consoleText('admin-info.txt').map(r.escapeHtml).join('\n'), { width: 560, size: 16 })}</div>
-      ${r.label('Staff view', 'left:30px;top:-18px')}
+      ${main('admin-browse', 700, 440, 40, 'Staff view')}
+      <div style="position:absolute;right:-20px;bottom:0">${r.codePanel('Console · /ah admin info', r.consoleText('admin-info.txt').map(r.escapeHtml).join('\n'), { width: 700, size: 15 })}</div>
     </div>`,
   }),
 
@@ -258,9 +275,8 @@ const assets = {
       'New settings arrive on update; yours are kept',
     ],
     art: `<div style="position:relative;height:780px">
-      <div style="position:absolute;left:0;top:20px">${r.codePanel('messages.yml', r.yaml(r.yamlSection('src/main/resources/messages.yml', 'notify').slice(0, 5)), { width: 880, size: 18, wrap: true })}</div>
-      ${shotArt('sold-title.jpg', CROP.title, 600, 'position:absolute;right:-10px;bottom:0')}
-      ${r.label('In game', 'right:40px;bottom:300px', 'gold')}
+      <div style="position:absolute;left:0;top:10px">${r.codePanel('messages.yml', r.yaml(r.yamlSection('src/main/resources/messages.yml', 'notify').slice(0, 5)), { width: 820, size: 18, wrap: true })}</div>
+      ${inset('sold-title', 620, 210, 30, 'In game')}
     </div>`,
   }),
 

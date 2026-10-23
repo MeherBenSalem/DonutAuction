@@ -6,6 +6,8 @@
 
 **2.0 "The Market Update"** adds auctions with bids, sales tax and listing fees, price insight, sale notifications, the collection, Discord webhooks, PlaceholderAPI, a developer API and staff tools. Each release is tested on every supported Paper and Folia version with real clients.
 
+![Browsing and buying on the market](https://raw.githubusercontent.com/MeherBenSalem/DonutAuction/main/marketing/images/gifs/buy.gif)
+
 ![divider](https://raw.githubusercontent.com/MeherBenSalem/DonutAuction/main/marketing/images/divider.png)
 
 ![The Market](https://raw.githubusercontent.com/MeherBenSalem/DonutAuction/main/marketing/images/header-market.png)
@@ -196,7 +198,37 @@ Use `blacklist` (materials, names, lore, custom model data, plugin data keys) an
 
 ![Gallery](https://raw.githubusercontent.com/MeherBenSalem/DonutAuction/main/marketing/images/header-gallery.png)
 
-GALLERY_PLACEHOLDER
+![The market, with a listing's enchantments, price, seller and time left](https://raw.githubusercontent.com/MeherBenSalem/DonutAuction/main/marketing/images/screenshots/browse-hover.jpg)
+
+![An auction with a live bid](https://raw.githubusercontent.com/MeherBenSalem/DonutAuction/main/marketing/images/screenshots/browse-auction-hover.jpg)
+
+![Shulker preview before buying](https://raw.githubusercontent.com/MeherBenSalem/DonutAuction/main/marketing/images/screenshots/shulker-preview.jpg)
+
+![Five sort orders](https://raw.githubusercontent.com/MeherBenSalem/DonutAuction/main/marketing/images/screenshots/browse-sort.jpg)
+
+![Category and listing-type filters](https://raw.githubusercontent.com/MeherBenSalem/DonutAuction/main/marketing/images/screenshots/filter-menu.jpg)
+
+![Confirm a purchase, with your balance afterwards](https://raw.githubusercontent.com/MeherBenSalem/DonutAuction/main/marketing/images/screenshots/confirm-purchase.jpg)
+
+![The bid menu](https://raw.githubusercontent.com/MeherBenSalem/DonutAuction/main/marketing/images/screenshots/bid-menu.jpg)
+
+![A bid placed: held in escrow, refunded if someone outbids you](https://raw.githubusercontent.com/MeherBenSalem/DonutAuction/main/marketing/images/screenshots/bid-placed.jpg)
+
+![Price insight in the sell menu](https://raw.githubusercontent.com/MeherBenSalem/DonutAuction/main/marketing/images/screenshots/sell-insight.jpg)
+
+![Fees and earnings before you list](https://raw.githubusercontent.com/MeherBenSalem/DonutAuction/main/marketing/images/screenshots/sell-fees.jpg)
+
+![Your Items: expired listings to reclaim or relist](https://raw.githubusercontent.com/MeherBenSalem/DonutAuction/main/marketing/images/screenshots/your-items.jpg)
+
+![Your trading summary](https://raw.githubusercontent.com/MeherBenSalem/DonutAuction/main/marketing/images/screenshots/your-items-summary.jpg)
+
+![The moment your item sells](https://raw.githubusercontent.com/MeherBenSalem/DonutAuction/main/marketing/images/screenshots/sold-title.jpg)
+
+![/ah price for the held item](https://raw.githubusercontent.com/MeherBenSalem/DonutAuction/main/marketing/images/screenshots/price-check.jpg)
+
+![Transaction history](https://raw.githubusercontent.com/MeherBenSalem/DonutAuction/main/marketing/images/screenshots/history.jpg)
+
+![Staff view: shift-right-click to remove a listing](https://raw.githubusercontent.com/MeherBenSalem/DonutAuction/main/marketing/images/screenshots/admin-browse.jpg)
 
 ---
 
