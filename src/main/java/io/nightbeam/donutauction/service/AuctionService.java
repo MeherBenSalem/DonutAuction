@@ -357,35 +357,61 @@ public final class AuctionService {
         rules.recordListing(player.getUniqueId());
 
         return repository.save(listing)
-                .thenApply(ignored -> {
-                    auctionManager.upsert(listing);
-                    listingSyncBus.publish(listing.auctionId(), ListingSyncAction.UPSERT);
-                    noteSynced(listing.updatedAt());
-                    events.callAsync(new AuctionListedEvent(listing));
-                    log("LISTED", listing, "price", listing.price(), "fee", fee, "type", type);
-                    webhook.post(new DiscordWebhook.Post(DiscordWebhook.Kind.LISTED, listing, formatPrice(price), price,
-                            listing.sellerName(), null, null));
-                    broadcast(listing);
-                    String key = type == ListingType.BID ? "service.listed-auction" : "service.listed";
-                    String fallback = type == ListingType.BID
-                            ? "&aYour auction for %item% &astarted at &6%price%&a." : "&aListed %item% for &6%price%&a.";
-                    String message = msg(key, fallback, "item", itemName(listingItem), "amount",
-                            String.valueOf(listingItem.getAmount()), "price", economyProvider.format(price));
-                    if (fee > 0.0D) {
-                        message += msg("service.fee-paid", " &7(fee %fee%)", "fee", economyProvider.format(fee));
+                .handle((ignored, saveFailure) -> {
+                    if (saveFailure != null) {
+                        // Only a failed save may hand the item back: nothing was listed.
+                        schedulerAdapter.runEntity(player, () -> restoreItem(player, listingItem));
+                        if (fee > 0.0D) {
+                            schedulerAdapter.runGlobal(() -> economyProvider.deposit(Bukkit.getOfflinePlayer(player.getUniqueId()), fee));
+                        }
+                        plugin.getLogger().severe("Failed to save auction listing: " + saveFailure.getMessage());
+                        return ActionResult.failure(msg(
+                                "service.create-failed",
+                                "&cFailed to create the auction. Your item was returned."));
                     }
-                    return ActionResult.success(message);
-                })
-                .exceptionally(throwable -> {
-                    schedulerAdapter.runEntity(player, () -> restoreItem(player, listingItem));
-                    if (fee > 0.0D) {
-                        schedulerAdapter.runGlobal(() -> economyProvider.deposit(Bukkit.getOfflinePlayer(player.getUniqueId()), fee));
-                    }
-                    plugin.getLogger().severe("Failed to save auction listing: " + throwable.getMessage());
-                    return ActionResult.failure(msg(
-                            "service.create-failed",
-                            "&cFailed to create the auction. Your item was returned."));
+                    // The listing is saved and live from here on. A failure in anything below (cache, sync, a third
+                    // party's AuctionListedEvent listener, the webhook, the broadcast) must never return the item, or
+                    // the player would keep it and have it listed at the same time.
+                    return announceListing(player, listing, listingItem, price, fee, type);
                 });
+    }
+
+    /** Side effects of a listing that is already saved. Each one is isolated; none of them can undo the listing. */
+    private ActionResult announceListing(Player player, AuctionListing listing, ItemStack listingItem, double price,
+                                         double fee, ListingType type) {
+        afterListingSaved(listing, "cache", () -> auctionManager.upsert(listing));
+        afterListingSaved(listing, "sync", () -> {
+            listingSyncBus.publish(listing.auctionId(), ListingSyncAction.UPSERT);
+            noteSynced(listing.updatedAt());
+        });
+        afterListingSaved(listing, "listed event", () -> events.callAsync(new AuctionListedEvent(listing)));
+        afterListingSaved(listing, "log", () -> log("LISTED", listing, "price", listing.price(), "fee", fee, "type", type));
+        afterListingSaved(listing, "webhook", () -> webhook.post(new DiscordWebhook.Post(DiscordWebhook.Kind.LISTED,
+                listing, formatPrice(price), price, listing.sellerName(), null, null)));
+        afterListingSaved(listing, "broadcast", () -> broadcast(listing));
+        try {
+            String key = type == ListingType.BID ? "service.listed-auction" : "service.listed";
+            String fallback = type == ListingType.BID
+                    ? "&aYour auction for %item% &astarted at &6%price%&a." : "&aListed %item% for &6%price%&a.";
+            String message = msg(key, fallback, "item", itemName(listingItem), "amount",
+                    String.valueOf(listingItem.getAmount()), "price", economyProvider.format(price));
+            if (fee > 0.0D) {
+                message += msg("service.fee-paid", " &7(fee %fee%)", "fee", economyProvider.format(fee));
+            }
+            return ActionResult.success(message);
+        } catch (RuntimeException exception) {
+            plugin.getLogger().warning("Listing " + listing.auctionId() + " saved, but its message failed: " + exception);
+            return ActionResult.success("&aListed.");
+        }
+    }
+
+    private void afterListingSaved(AuctionListing listing, String step, Runnable action) {
+        try {
+            action.run();
+        } catch (RuntimeException exception) {
+            plugin.getLogger().warning("Listing " + listing.auctionId() + " saved, but its " + step + " step failed: "
+                    + exception);
+        }
     }
 
     /**

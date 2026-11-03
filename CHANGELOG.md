@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.0.1
+
+- Fixed an item duplication: a failure after a listing was saved (cross-server sync, cache, broadcast or message) returned the item to the seller while the listing stayed live. Only a failed save returns the item now.
+
 ## 2.0.0 — The Market Update
 
 - Auctions with bids next to Buy It Now: escrowed bids, instant outbid refunds, anti-snipe extension, settled exactly once across servers and restarts.

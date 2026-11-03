@@ -139,7 +139,7 @@ abstract class FlowTestBase {
         when(economy.withdraw(any(), anyDouble())).thenReturn(new EconomyResponse(1, 1, EconomyResponse.ResponseType.SUCCESS, ""));
         when(economy.deposit(any(), anyDouble())).thenReturn(new EconomyResponse(1, 1, EconomyResponse.ResponseType.SUCCESS, ""));
         var hook = new NoopDonutCoreHook();
-        service = new AuctionService(plugin, scheduler, economy, repository, cache, hook, new NoopListingSyncBus(), DatabaseType.SQLITE);
+        service = new AuctionService(plugin, scheduler, economy, repository, cache, hook, syncBus(), DatabaseType.SQLITE);
         PlayerPreferenceRepository prefRepo = mock(PlayerPreferenceRepository.class);
         when(prefRepo.save(any())).thenReturn(CompletableFuture.completedFuture(null));
         preferences = new PlayerPreferenceManager(prefRepo);
@@ -178,6 +178,10 @@ abstract class FlowTestBase {
             if (seller.getOpenInventory().getTopInventory() == null) seller.openInventory(server.createInventory(null, 9, "Crafting"));
             task.run();
         }
+    }
+    /** The cross-server sync bus the service publishes to; tests override it to simulate failures. */
+    protected io.nightbeam.donutauction.sync.ListingSyncBus syncBus() {
+        return new NoopListingSyncBus();
     }
     protected void await(BooleanSupplier condition) throws Exception {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
