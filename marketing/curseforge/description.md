@@ -1,8 +1,6 @@
 ![DonutAuctionHouse 2.0: The Market Update](https://raw.githubusercontent.com/MeherBenSalem/DonutAuction/main/marketing/images/banner.png)
 
-**[Docs](https://nightbeam.dev/docs/donut-auction) · [Discord](https://discord.gg/TJc3CxR4jK) · [Premium plugins](https://nightbeam.dev/store) · [Support NightBeam](https://nightbeam.dev/support) · [NightBeam Pro](https://nightbeam.dev/memberships) · [All projects](https://nightbeam.dev/projects)**
-
-> **Running a server?** NightBeam's premium plugins are on [BuiltByBit](https://nightbeam.dev/store): NightWatch Pro anti-cheat, the AstralSMP setup, Astral Core and more.
+**[Docs](https://nightbeam.dev/docs/donut-auction) · [Discord](https://discord.gg/TJc3CxR4jK) · [Source and issues](https://github.com/MeherBenSalem/DonutAuction)**
 
 ## The auction house your players will actually use
 
@@ -242,6 +240,10 @@ DonutAuctionHouse is licensed under Apache-2.0. The Outfit and Inter fonts used 
 
 ---
 
+> **Running a server?** NightBeam's premium plugins are on [BuiltByBit](https://nightbeam.dev/store): NightWatch Pro anti-cheat, the AstralSMP setup, Astral Core and more.
+
+---
+
 ### More from NightBeam Studio
 
 - **[Remnants: Ashen Legacy](https://www.curseforge.com/minecraft/modpacks/remnants-ashen-legacy)**: the story-driven soulslike RPG modpack built on NightBeam's mods
@@ -250,4 +252,4 @@ DonutAuctionHouse is licensed under Apache-2.0. The Outfit and Inter fonts used 
 - **[Discord](https://discord.gg/TJc3CxR4jK)**: support, bug reports, suggestions and early looks
 - **[Support NightBeam](https://nightbeam.dev/support)**: help keep every mod free
 
-**Follow:** [YouTube](https://www.youtube.com/@nightbeamstudio) · [Instagram](https://www.instagram.com/nightbeamstudio/) · [X](https://x.com/NightBeamLLC) · [Facebook](https://www.facebook.com/profile.php?id=61574823331471) · [Source and issues](https://github.com/MeherBenSalem/DonutAuction)
+**Follow:** [YouTube](https://www.youtube.com/@nightbeamstudio) · [Instagram](https://www.instagram.com/nightbeamstudio/) · [X](https://x.com/NightBeamLLC) · [Facebook](https://www.facebook.com/profile.php?id=61574823331471)
