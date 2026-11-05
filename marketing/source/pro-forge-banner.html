@@ -1,0 +1,145 @@
+<!doctype html>
+<!--
+  NightBeam Pro + Forge promo banner for the bottom of the CurseForge description.
+  Code-native artwork: HTML, CSS and an SVG voxel model drawn by the script below.
+  Render (1800x600) from the repository root on Windows:
+    "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe" --headless=new --hide-scrollbars \
+      --window-size=1800,600 --force-device-scale-factor=1 --virtual-time-budget=4000 \
+      --screenshot="$PWD/marketing/images/pro-forge-banner.png" "file:///$PWD/marketing/source/pro-forge-banner.html"
+  Prices follow nightbeam.dev/memberships (Pro $5/month, 50% off the first month) and
+  the 750 monthly Forge credits; update them here if they change.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Instrument+Serif:ital@0;1&family=Silkscreen&display=block" rel="stylesheet">
+<style>
+  :root { --bg:#0a0a0b; --raised:#111113; --fg:#f4f2ed; --muted:#9c9a93; --subtle:#6a6964; --line:rgba(255,255,255,.09); --line2:rgba(255,255,255,.18); --gold:#f1c36b; --ice:#9fe3ff; }
+  * { box-sizing:border-box; margin:0; }
+  html,body { width:1800px; height:600px; overflow:hidden; background:var(--bg); color:var(--fg); font-family:"Instrument Sans",sans-serif; }
+  .stage { position:relative; width:1800px; height:600px; overflow:hidden; background:var(--bg); }
+  #sky { position:absolute; inset:0; }
+  .frame { position:absolute; inset:28px; border:1px solid var(--line2); border-radius:34px; }
+
+  .copy { position:absolute; left:96px; top:80px; width:680px; }
+  .eyebrow { display:flex; align-items:center; gap:16px; font-family:Silkscreen,monospace; font-size:21px; letter-spacing:.12em; color:var(--muted); text-transform:uppercase; }
+  .pill { font-family:"Instrument Sans",sans-serif; font-weight:600; letter-spacing:0; text-transform:none; font-size:20px; color:#0a0a0b; background:var(--gold); border-radius:999px; padding:5px 15px; }
+  h1 { margin-top:24px; font-family:"Instrument Serif",serif; font-weight:400; font-size:92px; line-height:.96; letter-spacing:-.01em; }
+  h1 em { color:var(--gold); }
+  .lede { margin-top:22px; font-size:25px; line-height:1.4; color:var(--muted); max-width:640px; }
+  .lede b { color:var(--fg); font-weight:500; }
+
+  .offer { position:absolute; left:96px; bottom:72px; display:flex; align-items:center; gap:34px; }
+  .price { display:flex; align-items:baseline; gap:14px; }
+  .price .was { font-size:34px; color:var(--subtle); text-decoration:line-through; text-decoration-thickness:2px; }
+  .price .now { font-family:"Instrument Serif",serif; font-size:84px; line-height:1; }
+  .price .per { font-size:24px; color:var(--muted); }
+  .then { font-size:21px; color:var(--subtle); margin-top:6px; }
+  .cta { display:inline-flex; align-items:center; gap:14px; height:68px; padding:0 34px; border-radius:999px; background:var(--fg); color:#0a0a0b; font-size:25px; font-weight:600; }
+  .cta svg { width:24px; height:24px; }
+
+  .prompt { position:absolute; right:540px; top:170px; width:400px; border:1px solid var(--line2); border-radius:22px; background:rgba(17,17,19,.92); padding:20px 26px; }
+  .prompt .label { font-family:Silkscreen,monospace; font-size:16px; letter-spacing:.12em; color:var(--subtle); text-transform:uppercase; }
+  .prompt .text { margin-top:10px; font-size:24px; line-height:1.3; color:var(--fg); }
+  .prompt .text::after { content:""; display:inline-block; width:3px; height:28px; margin-left:6px; vertical-align:-5px; background:var(--gold); }
+  .prompt .meta { margin-top:14px; display:flex; gap:10px; }
+  .chip { font-size:17px; color:var(--muted); border:1px solid var(--line2); border-radius:999px; padding:4px 12px; }
+  #model { position:absolute; right:70px; bottom:58px; width:520px; height:440px; }
+  .arrow { position:absolute; right:466px; top:256px; width:70px; color:var(--gold); }
+  .tag { position:absolute; right:540px; top:392px; width:400px; text-align:center; font-family:Silkscreen,monospace; font-size:15px; letter-spacing:.12em; color:var(--subtle); }
+</style>
+</head>
+<body>
+<div class="stage">
+  <canvas id="sky" width="1800" height="600"></canvas>
+  <div class="frame"></div>
+
+  <div class="copy">
+    <p class="eyebrow"><span class="pill">NightBeam Pro</span>NightBeam Forge</p>
+    <h1>Describe a mob.<br><em>Get a 3D model.</em></h1>
+    <p class="lede">Rigged, textured, animated Blockbench models. <b>750 Forge credits every month</b> with Pro.</p>
+  </div>
+
+  <div class="offer">
+    <div>
+      <div class="price"><span class="was">$5</span><span class="now">$2.50</span><span class="per">first month</span></div>
+      <div class="then">then $5/month · cancel anytime</div>
+    </div>
+    <span class="cta">nightbeam.dev/forge
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+    </span>
+  </div>
+
+  <div class="prompt">
+    <p class="label">Prompt</p>
+    <p class="text">a frost golem with glowing ice runes</p>
+    <p class="meta"><span class="chip">Mob</span><span class="chip">Standard</span><span class="chip">Idle + walk</span></p>
+  </div>
+  <svg class="arrow" viewBox="0 0 70 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-dasharray="4 6"><path d="M2 10h62M56 3l8 7-8 7"/></svg>
+  <svg id="model" viewBox="0 0 520 440"></svg>
+  <span class="tag">.bbmodel · rigged · animated</span>
+</div>
+
+<script>
+// Pixel night sky: deterministic stars on a 4px grid.
+(() => {
+  const c = document.getElementById('sky').getContext('2d');
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < 230; i++) {
+    const x = Math.floor(rnd() * 450) * 4, y = Math.floor(rnd() * 105) * 4, b = rnd();
+    c.fillStyle = b > .93 ? 'rgba(241,195,107,.85)' : `rgba(244,242,237,${(.12 + b * .45).toFixed(2)})`;
+    const s = b > .97 ? 4 : 2; c.fillRect(x, y, s, s);
+  }
+})();
+
+// Isometric voxel golem. Each voxel: [x, y, z, colour]; z is up.
+(() => {
+  const V = [];
+  const box = (x0, y0, z0, w, d, h, col) => { for (let x = x0; x < x0 + w; x++) for (let y = y0; y < y0 + d; y++) for (let z = z0; z < z0 + h; z++) V.push([x, y, z, typeof col === 'function' ? col(x, y, z) : col]); };
+  const stone = (x, y, z) => ((x * 7 + y * 3 + z * 5) % 4 === 0 ? '#7f93a6' : (x + y + z) % 3 === 0 ? '#6d8194' : '#8aa0b3');
+  const ice = (x, y, z) => ((x + y * 2 + z) % 3 === 0 ? '#bfefff' : '#9fe3ff');
+  box(1, 1, 0, 2, 2, 4, stone);  box(5, 1, 0, 2, 2, 4, stone);          // legs
+  box(0, 0, 4, 8, 4, 6, stone);                                          // torso
+  box(-2, 1, 4, 2, 2, 6, stone); box(8, 1, 4, 2, 2, 6, stone);          // arms
+  box(2, 0, 10, 4, 4, 3, stone);                                         // head
+  box(0, 0, 9, 1, 1, 3, ice); box(7, 0, 9, 1, 1, 3, ice); box(3, 1, 13, 2, 2, 2, ice); // crystals
+  const glow = new Set(['3,3,11', '4,3,11', '2,3,7', '3,3,6', '4,3,6', '5,3,7', '3,3,8', '4,3,8', '7,1,7', '7,2,6']);
+  const VOX = V.map(([x, y, z, col]) => [x, y, z, glow.has(`${x},${y},${z}`) && z <= 11 ? 'rune' : col]);
+  const forged = (z) => z <= 9; // upper layers are still being forged: wireframe
+
+  const S = 19, ox = 240, oy = 330;
+  const iso = (x, y, z) => [ox + (x - y) * S * 0.866, oy + (x + y) * S * 0.5 - z * S];
+  const occ = new Set(VOX.map(([x, y, z]) => `${x},${y},${z}`));
+  const shade = (hex, k) => { const n = parseInt(hex.slice(1), 16); const f = (v) => Math.max(0, Math.min(255, Math.round(v * k))); return `rgb(${f(n >> 16)},${f((n >> 8) & 255)},${f(n & 255)})`; };
+  const svg = document.getElementById('model'); let out = '';
+
+  // Grid floor.
+  for (let i = -6; i <= 14; i++) {
+    const a = iso(i, -6, 0), b = iso(i, 10, 0), c = iso(-6, i - 4, 0), d = iso(14, i - 4, 0);
+    out += `<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="rgba(255,255,255,.05)"/><line x1="${c[0]}" y1="${c[1]}" x2="${d[0]}" y2="${d[1]}" stroke="rgba(255,255,255,.05)"/>`;
+  }
+  // Painter's order: back to front, bottom to top.
+  VOX.sort((p, q) => (p[0] + p[1] + p[2]) - (q[0] + q[1] + q[2]) || p[2] - q[2]);
+  const poly = (pts) => pts.map((p) => p.join(',')).join(' ');
+  for (const [x, y, z, col] of VOX) {
+    const top = [iso(x, y, z + 1), iso(x + 1, y, z + 1), iso(x + 1, y + 1, z + 1), iso(x, y + 1, z + 1)];
+    const left = [iso(x, y + 1, z + 1), iso(x + 1, y + 1, z + 1), iso(x + 1, y + 1, z), iso(x, y + 1, z)];
+    const right = [iso(x + 1, y, z + 1), iso(x + 1, y + 1, z + 1), iso(x + 1, y + 1, z), iso(x + 1, y, z)];
+    if (!forged(z)) {
+      const st = 'fill="none" stroke="rgba(241,195,107,.55)" stroke-width="1"';
+      if (!occ.has(`${x},${y},${z + 1}`)) out += `<polygon points="${poly(top)}" ${st}/>`;
+      if (!occ.has(`${x},${y + 1},${z}`)) out += `<polygon points="${poly(left)}" ${st}/>`;
+      if (!occ.has(`${x + 1},${y},${z}`)) out += `<polygon points="${poly(right)}" ${st}/>`;
+      continue;
+    }
+    const base = col === 'rune' ? '#9fe3ff' : col;
+    const edge = 'stroke="rgba(10,10,11,.35)" stroke-width=".6"';
+    if (!occ.has(`${x},${y},${z + 1}`)) out += `<polygon points="${poly(top)}" fill="${shade(base, 1.08)}" ${edge}/>`;
+    if (!occ.has(`${x},${y + 1},${z}`)) out += `<polygon points="${poly(left)}" fill="${shade(base, col === 'rune' ? 1 : .78)}" ${edge}/>`;
+    if (!occ.has(`${x + 1},${y},${z}`)) out += `<polygon points="${poly(right)}" fill="${shade(base, col === 'rune' ? .9 : .6)}" ${edge}/>`;
+  }
+  svg.innerHTML = out;
+})();
+</script>
+</body>
+</html>

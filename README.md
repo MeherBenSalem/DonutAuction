@@ -6,6 +6,8 @@ Buy It Now and real auctions with bids, sales tax and listing fees, price insigh
 collection that never loses an item, Discord webhooks, PlaceholderAPI, a developer API, and one shared
 market across servers with MySQL (plus optional Redis). Vault or VaultUnlocked economy.
 
+**Documentation:** <https://nightbeam.dev/docs/donut-auction> (sources in [`docs/`](docs/); the screenshots in `docs/images/` are crops of the captures in `marketing/images/screenshots/`).
+
 ## Features
 
 - **Browse**: a 45-slot market with search by name, lore, enchantment, seller or shulker contents.

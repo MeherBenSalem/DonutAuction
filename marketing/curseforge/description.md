@@ -6,6 +6,10 @@
 
 **2.0 "The Market Update"** adds auctions with bids, sales tax and listing fees, price insight, sale notifications, the collection, Discord webhooks, PlaceholderAPI, a developer API and staff tools. Each release is tested on every supported Paper and Folia version with real clients.
 
+[![Documentation](https://img.shields.io/badge/Documentation-f1c36b?style=for-the-badge&logo=readthedocs&logoColor=0a0a0b)](https://nightbeam.dev/docs/donut-auction) [![Discord](https://img.shields.io/badge/Discord-18181b?style=for-the-badge&logo=discord&logoColor=5865F2)](https://discord.gg/TJc3CxR4jK) [![YouTube](https://img.shields.io/badge/YouTube-18181b?style=for-the-badge&logo=youtube&logoColor=FF0000)](https://www.youtube.com/@nightbeamstudio) [![Instagram](https://img.shields.io/badge/Instagram-18181b?style=for-the-badge&logo=instagram&logoColor=E4405F)](https://www.instagram.com/nightbeamstudio/) [![X](https://img.shields.io/badge/X-18181b?style=for-the-badge&logo=x&logoColor=ffffff)](https://x.com/NightBeamLLC) [![Facebook](https://img.shields.io/badge/Facebook-18181b?style=for-the-badge&logo=facebook&logoColor=1877F2)](https://www.facebook.com/profile.php?id=61574823331471) [![Website](https://img.shields.io/badge/Website-18181b?style=for-the-badge&logo=googlechrome&logoColor=f1c36b)](https://nightbeam.dev/)
+
+**New:** the full documentation, with screenshots of every menu, every config option and message, commands, permissions, placeholders and the API, now lives at **[nightbeam.dev/docs/donut-auction](https://nightbeam.dev/docs/donut-auction)**.
+
 ![Browsing and buying on the market](https://raw.githubusercontent.com/MeherBenSalem/DonutAuction/main/marketing/images/gifs/buy.gif)
 
 ![divider](https://raw.githubusercontent.com/MeherBenSalem/DonutAuction/main/marketing/images/divider.png)
@@ -194,7 +198,7 @@ Yes. Set `economy.sales-tax.percent` for everyone and add tiers under `economy.s
 Use `blacklist` (materials, names, lore, custom model data, plugin data keys) and `auction.price-limits` for price floors and ceilings per item.
 
 **Where are the docs?**
-[README](https://github.com/MeherBenSalem/DonutAuction#readme) · [Release notes](https://github.com/MeherBenSalem/DonutAuction/blob/main/DonutAuctionHouse-2.0.0-PatchNotes.md) · [Issues](https://github.com/MeherBenSalem/DonutAuction/issues)
+On our website: **[Documentation](https://nightbeam.dev/docs/donut-auction)** · [Configuration](https://nightbeam.dev/docs/donut-auction/configuration) · [Commands](https://nightbeam.dev/docs/donut-auction/commands) · [Permissions](https://nightbeam.dev/docs/donut-auction/permissions) · [Placeholders](https://nightbeam.dev/docs/donut-auction/placeholders) · [Developer API](https://nightbeam.dev/docs/donut-auction/developer-api) · [Issues](https://github.com/MeherBenSalem/DonutAuction/issues)
 
 ![Gallery](https://raw.githubusercontent.com/MeherBenSalem/DonutAuction/main/marketing/images/header-gallery.png)
 
@@ -233,3 +237,5 @@ Use `blacklist` (materials, names, lore, custom model data, plugin data keys) an
 ---
 
 DonutAuctionHouse is licensed under Apache-2.0. The Outfit and Inter fonts used in this artwork are licensed under the SIL Open Font License 1.1. Screenshots are unedited captures of the vanilla Minecraft client on a Paper server running the plugin. DonutAuctionHouse is an independent project and is not affiliated with Mojang, Microsoft or any server it takes inspiration from.
+
+[![NightBeam Pro: describe a mob, get a 3D model with NightBeam Forge. $2.50 first month, then $5/month](https://raw.githubusercontent.com/MeherBenSalem/DonutAuction/main/marketing/images/pro-forge-banner.png)](https://nightbeam.dev/forge)

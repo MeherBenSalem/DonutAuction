@@ -86,3 +86,7 @@ Card crops are pixel regions of the 1920×1080 captures (`CROP` in `source/asset
 ## Wording
 
 Say what the plugin does, in plain words, with numbers that are 2.0.0 defaults from `config.yml` or the code. Do not use other servers', plugins' or games' names, logos or art in listing images or titles, and do not compare against named competitors. The made-up player names in the screenshots (Moonbeam, Kiri, Willow, Draxen and the rest) are not real players.
+
+## Listing conventions
+
+Right after the opening description comes one row of matching badges (Documentation in gold, then Discord, YouTube, Instagram, X, Facebook and the website: dark single-segment shields.io badges with brand-coloured logos), and the description links the website docs at <https://nightbeam.dev/docs/donut-auction>. The very last thing is the NightBeam Pro / Forge banner (`images/pro-forge-banner.png`, linking to <https://nightbeam.dev/forge>; source and render command in `source/pro-forge-banner.html`). Keep all of them when rewriting the copy.
