@@ -1,12 +1,14 @@
 ![DonutAuctionHouse 2.0: The Market Update](https://raw.githubusercontent.com/MeherBenSalem/DonutAuction/main/marketing/images/banner.png)
 
+**[Docs](https://nightbeam.dev/docs/donut-auction) · [Discord](https://discord.gg/TJc3CxR4jK) · [Premium plugins](https://nightbeam.dev/store) · [Support NightBeam](https://nightbeam.dev/support) · [NightBeam Pro](https://nightbeam.dev/memberships) · [All projects](https://nightbeam.dev/projects)**
+
+> **Running a server?** NightBeam's premium plugins are on [BuiltByBit](https://nightbeam.dev/store): NightWatch Pro anti-cheat, the AstralSMP setup, Astral Core and more.
+
 ## The auction house your players will actually use
 
-**DonutAuctionHouse** is a free, open-source auction house for Paper, Folia and Purpur, from Minecraft **1.20.1 to 26.3**. Players open `/ah` and get a clean 45-slot market. They can search it by name, enchantment or seller, sell anything in a few clicks with `/ah sell 2.5k`, or put rare items up for a real auction with bids. Sellers are told the moment something sells, even while they are on another server or offline. Nothing is ever dropped on the ground. Every purchase, bid and reclaim is a database claim that only one player, on one server, can win.
+**DonutAuctionHouse** is a free, open-source auction house for Paper, Folia and Purpur, from Minecraft **1.20.1 to 26.3**. Players open `/ah` and get a clean 45-slot market. They can search it by name, enchantment or seller, sell anything in a few clicks with `/ah sell 2.5k`, or put rare items up for a real auction with bids. Sellers are told the moment something sells, even while they are on another server or offline. Nothing is ever dropped on the ground. Every purchase, bid and reclaim is a database claim that exactly one player, on one server, can win.
 
 **2.0 "The Market Update"** adds auctions with bids, sales tax and listing fees, price insight, sale notifications, the collection, Discord webhooks, PlaceholderAPI, a developer API and staff tools. Each release is tested on every supported Paper and Folia version with real clients.
-
-[![Documentation](https://img.shields.io/badge/Documentation-f1c36b?style=for-the-badge&logo=readthedocs&logoColor=0a0a0b)](https://nightbeam.dev/docs/donut-auction) [![Discord](https://img.shields.io/badge/Discord-18181b?style=for-the-badge&logo=discord&logoColor=5865F2)](https://discord.gg/TJc3CxR4jK) [![YouTube](https://img.shields.io/badge/YouTube-18181b?style=for-the-badge&logo=youtube&logoColor=FF0000)](https://www.youtube.com/@nightbeamstudio) [![Instagram](https://img.shields.io/badge/Instagram-18181b?style=for-the-badge&logo=instagram&logoColor=E4405F)](https://www.instagram.com/nightbeamstudio/) [![X](https://img.shields.io/badge/X-18181b?style=for-the-badge&logo=x&logoColor=ffffff)](https://x.com/NightBeamLLC) [![Facebook](https://img.shields.io/badge/Facebook-18181b?style=for-the-badge&logo=facebook&logoColor=1877F2)](https://www.facebook.com/profile.php?id=61574823331471) [![Website](https://img.shields.io/badge/Website-18181b?style=for-the-badge&logo=googlechrome&logoColor=f1c36b)](https://nightbeam.dev/)
 
 **New:** the full documentation, with screenshots of every menu, every config option and message, commands, permissions, placeholders and the API, now lives at **[nightbeam.dev/docs/donut-auction](https://nightbeam.dev/docs/donut-auction)**.
 
@@ -70,7 +72,7 @@ Fast sell (`/ah fastsell`) skips the menu and lists at once with your last durat
 
 ![Nothing is ever lost](https://raw.githubusercontent.com/MeherBenSalem/DonutAuction/main/marketing/images/card-collection.png)
 
-- Items are handed over **only as whole stacks that fit**. A purchase made with a full inventory, an auction won while offline, an expired listing or one removed by staff waits in `/ah collect`. Nothing is dropped on the ground.
+- Items are handed over **always as whole stacks that fit**. A purchase made with a full inventory, an auction won while offline, an expired listing or one removed by staff waits in `/ah collect`. Nothing is dropped on the ground.
 - **Collect All** takes everything that fits in one click.
 - **Right-click** an expired listing to relist it at the same price, or left-click to take it back.
 - Your Items shows your active listings, your limit, and how much you have sold and bought.
@@ -94,9 +96,9 @@ Tax and fees are off until you enable them. Every rule has a bypass permission f
 
 ![Dupe-safe by design](https://raw.githubusercontent.com/MeherBenSalem/DonutAuction/main/marketing/images/card-safety.png)
 
-- **One winner per action.** Buying, bidding, ending an auction, cancelling, reclaiming and collecting each start with a conditional database update that only one player on one server can win. Double clicks, lag and two servers at once cannot sell or return an item twice.
+- **One winner per action.** Buying, bidding, ending an auction, cancelling, reclaiming and collecting each start with a conditional database update that exactly one player on one server can win. Double clicks, lag and two servers at once cannot sell or return an item twice.
 - **The item is always somewhere**: in a hand, in a pending sale, on the market or in a collection. It is never in two places, and never on the ground.
-- **Folia-safe**: inventories only change on the player's own thread.
+- **Folia-safe**: inventories change on the player's own thread and nowhere else.
 - **Upgrade-proof**: items are stored in Paper's versioned format and run through Mojang's data fixers, so listings survive Minecraft updates. An item that cannot be read is set aside and reported; it never blocks the rest.
 - **One market, many servers**: MySQL shares listings and Redis (optional) makes updates instant.
 
@@ -151,7 +153,7 @@ Tax and fees are off until you enable them. Every rule has a bypass permission f
 
 - Needs **Vault** or **VaultUnlocked** and an economy plugin (EssentialsX, CMI, and others).
 - Optional: PlaceholderAPI, DonutCore, MySQL and Redis.
-- One jar for every version. Install it on the server only; players need no mods.
+- One jar for every version. Install it on the server; players need no mods.
 - Each release runs an automated matrix on real Paper 1.20.1, 1.20.4, 1.20.6, 1.21.1, 1.21.4, 1.21.8, 1.21.11, 26.1.2, 26.2 and 26.3 servers and Folia 1.20.4, 1.21.4, 1.21.11 and 26.3, with real clients listing, buying, bidding and winning.
 
 ![Commands & Permissions](https://raw.githubusercontent.com/MeherBenSalem/DonutAuction/main/marketing/images/header-commands.png)
@@ -180,18 +182,18 @@ The 1.x `donutcore.auction.*` permissions keep working.
 Yes, all of it: auctions, tax, price insight, webhooks, PlaceholderAPI, cross-server and the API. The source is on GitHub under Apache-2.0.
 
 **I'm updating from 1.x. Will I lose anything?**
-No. Replace the jar and restart. Your listings, history, config values and messages are kept, and new settings are added. Back up your database first, as with any update.
+No. Replace the jar and restart. Your listings, history, config values and messages are kept, and new settings are added. Back up your database beforehand, as with any update.
 
 **Does it work on Spigot?**
 No. DonutAuctionHouse uses Paper's API (Adventure text, region schedulers). Paper is a drop-in replacement for Spigot, and Purpur and other Paper forks work too.
 
 **Can players dupe items with it?**
-Every purchase, bid, auction end, cancel and reclaim is a conditional database update that only one action can win. Items only move as whole stacks that fit, so nothing is dropped where it could be picked up twice. If you ever find a way, please report it privately (see SECURITY.md on GitHub).
+Every purchase, bid, auction end, cancel and reclaim is a conditional database update that exactly one action can win. Items always move as whole stacks that fit, so nothing is dropped where it could be picked up twice. If you ever find a way, please report it privately (see SECURITY.md on GitHub).
 
 **How do I share one market between servers?**
 Set `storage.type: MYSQL` on every server with the same database. Optionally enable `sync.redis` for instant updates. Sales notifications follow the player to whichever server they are on.
 
-**Can I charge tax only to some players?**
+**Can I charge tax to some players and not others?**
 Yes. Set `economy.sales-tax.percent` for everyone and add tiers under `economy.sales-tax.permissions`, for example `donutauction.tax.vip: 2.5`. The lowest matching tier applies.
 
 **Can I stop people selling certain items?**
@@ -238,4 +240,14 @@ On our website: **[Documentation](https://nightbeam.dev/docs/donut-auction)** ·
 
 DonutAuctionHouse is licensed under Apache-2.0. The Outfit and Inter fonts used in this artwork are licensed under the SIL Open Font License 1.1. Screenshots are unedited captures of the vanilla Minecraft client on a Paper server running the plugin. DonutAuctionHouse is an independent project and is not affiliated with Mojang, Microsoft or any server it takes inspiration from.
 
-[![NightBeam Pro: describe a mob, get a 3D model with NightBeam Forge. $2.50 first month, then $5/month](https://raw.githubusercontent.com/MeherBenSalem/DonutAuction/main/marketing/images/pro-forge-banner.png)](https://nightbeam.dev/forge)
+---
+
+### More from NightBeam Studio
+
+- **[Remnants: Ashen Legacy](https://www.curseforge.com/minecraft/modpacks/remnants-ashen-legacy)**: the story-driven soulslike RPG modpack built on NightBeam's mods
+- **[Premium server plugins](https://nightbeam.dev/store)**: anti-cheat, ranked PvP, SMP setups and more on BuiltByBit
+- **[NightBeam Pro](https://nightbeam.dev/memberships)**: the model library and NightBeam Forge credits, from $5 a month
+- **[Discord](https://discord.gg/TJc3CxR4jK)**: support, bug reports, suggestions and early looks
+- **[Support NightBeam](https://nightbeam.dev/support)**: help keep every mod free
+
+**Follow:** [YouTube](https://www.youtube.com/@nightbeamstudio) · [Instagram](https://www.instagram.com/nightbeamstudio/) · [X](https://x.com/NightBeamLLC) · [Facebook](https://www.facebook.com/profile.php?id=61574823331471) · [Source and issues](https://github.com/MeherBenSalem/DonutAuction)
