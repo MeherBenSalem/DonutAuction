@@ -40,6 +40,9 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 public final class AuctionHousePlugin extends JavaPlugin {
 
+    /** bStats plugin ID, also declared as {@code bstats-id} in plugin.yml (checked in CI). */
+    static final int BSTATS_ID = 33523;
+
     private SchedulerAdapter schedulerAdapter;
     private VaultEconomyProvider economyProvider;
     private DatabaseManager databaseManager;
@@ -192,11 +195,11 @@ public final class AuctionHousePlugin extends JavaPlugin {
     }
 
     private void startMetrics() {
-        if (!getConfig().getBoolean("metrics.enabled", true)) {
+        if (BSTATS_ID <= 0 || !getConfig().getBoolean("metrics.enabled", true)) {
             return;
         }
         try {
-            Metrics metrics = new Metrics(this, 33523);
+            Metrics metrics = new Metrics(this, BSTATS_ID);
             metrics.addCustomChart(new SimplePie("server_software", () -> Bukkit.getServer().getName()));
             metrics.addCustomChart(new SimplePie("storage_type", () -> databaseManager.getDatabaseType().name()));
             metrics.addCustomChart(new SimplePie("bidding", () -> String.valueOf(getConfig().getBoolean("bidding.enabled", true))));

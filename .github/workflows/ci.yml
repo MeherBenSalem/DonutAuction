@@ -1,9 +1,13 @@
 name: CI
 
+# NightBeam plugin CI: unit tests, the plugin.yml check (api-version '1.20', folia-supported, bStats ID, Java 17
+# bytecode) and a smoke boot on Paper 1.20.1, Paper 26.3 and the newest Folia. Publish requires the test (17) and
+# test (21) jobs of this workflow to be green for the release commit, so keep those job and step names.
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   test:
@@ -40,3 +44,86 @@ jobs:
         with:
           node-version: "24"
       - run: node --test scripts/release-helpers.test.mjs
+      - name: Same-day guard tests
+        run: node --test scripts/same_day_guard.test.mjs
+
+  package:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Build plugin jar
+        run: mvn -B -q -DskipTests package
+      - name: Check plugin.yml and bytecode
+        run: python3 scripts/check_plugin_yml.py --jar target/DonutAuctionHouse-*.jar
+      - name: Build smoke economy fixture
+        run: |
+          VERSION=$(mvn -q help:evaluate -Dexpression=project.version -DforceStdout)
+          mvn -B -q -f tools/smoke/fixture/pom.xml package -Ddonutauction.version="$VERSION" -Ddonutauction.jar="$PWD/target/DonutAuctionHouse-$VERSION.jar"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plugin-jar
+          path: |
+            target/DonutAuctionHouse-*.jar
+            tools/smoke/fixture/target/AuctionLabFixture.jar
+          if-no-files-found: error
+
+  smoke:
+    needs: package
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { project: paper, version: "1.20.1", economy: vault }
+          - { project: paper, version: "26.3", economy: vault }
+          - { project: folia, version: latest, economy: vaultunlocked }
+    name: smoke (${{ matrix.project }} ${{ matrix.version }})
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: |
+            17
+            21
+            25
+      - uses: actions/download-artifact@v4
+        with:
+          name: plugin-jar
+          path: artifact
+      - name: Download Vault economy bridge
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p extra
+          cp artifact/tools/smoke/fixture/target/AuctionLabFixture.jar extra/
+          if [ "${{ matrix.economy }}" = vault ]; then
+            curl -fsSL -o extra/Vault.jar https://github.com/MilkBowl/Vault/releases/download/1.7.3/Vault.jar
+          else
+            url=$(curl -fsSL -A "NightBeam-plugin-smoke" 'https://api.modrinth.com/v2/project/vaultunlocked/version?loaders=%5B%22folia%22%5D' \
+              | python3 -c 'import json,sys; v=json.load(sys.stdin); r=next((x for x in v if x["version_type"]=="release"), v[0]); f=next((x for x in r["files"] if x["primary"]), r["files"][0]); print(f["url"])')
+            curl -fsSL -o extra/VaultUnlocked.jar "$url"
+          fi
+          ls -la extra
+      - name: Boot server
+        id: boot
+        run: >-
+          python3 scripts/smoke_boot.py --project ${{ matrix.project }} --version ${{ matrix.version }}
+          --jar 'artifact/target/DonutAuctionHouse-*.jar' --name DonutAuctionHouse --package io.nightbeam.donutauction
+          --extra extra
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-log-${{ matrix.project }}-${{ matrix.version }}
+          path: smoke-server/console.log
+          if-no-files-found: ignore

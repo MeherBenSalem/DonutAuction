@@ -3,6 +3,8 @@ version: ${project.version}
 main: io.nightbeam.donutauction.AuctionHousePlugin
 api-version: '1.20'
 folia-supported: true
+# bStats plugin ID (Bukkit ignores this key; CI checks it matches the code)
+bstats-id: 33523
 authors:
   - NightBeam Studio
 website: https://github.com/MeherBenSalem/DonutAuction

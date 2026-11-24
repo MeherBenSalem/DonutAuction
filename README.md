@@ -36,6 +36,10 @@ market across servers with MySQL (plus optional Redis). Vault or VaultUnlocked e
   server can win. Items are stored in Paper's versioned format so they survive Minecraft upgrades.
   The plugin is Folia-safe throughout.
 
+Supported versions: Paper and Folia 1.20 to 26.3, Java 17+ (one jar).
+
+Metrics: bStats plugin ID 33523.
+
 ## Requirements
 
 - Paper, Folia, Purpur or another Paper fork, **1.20.1–26.3** (plain Spigot/Bukkit lacks Paper's API;
@@ -149,6 +153,11 @@ mvn package            # target/DonutAuctionHouse-<version>.jar, runs the unit a
 `mvn test` runs the unit tests, the command and inventory flows on native SQLite, and the database
 claims (add `-Dauction.test.mysql.url=jdbc:mysql://localhost:3306/<db>` for MySQL). The cross-version
 matrix on real Paper and Folia servers with network clients is in [`tools/smoke`](tools/smoke/README.md).
+
+CI (`.github/workflows/ci.yml`) runs on every push to `main`: `mvn test` on Java 17 and 21 (plus MySQL),
+`python3 scripts/check_plugin_yml.py` on the built jar (`api-version: '1.20'`, `folia-supported: true`, the
+bStats ID, Java 17 bytecode), the publisher script tests (`node --test scripts/*.test.mjs`), and a smoke boot
+on Paper 1.20.1, Paper 26.3 and the newest Folia (`python3 scripts/smoke_boot.py`).
 
 Release tagging (Modrinth / CurseForge, and Hangar if you upload there) must use every loader and
 Minecraft version in [`release/supported-minecraft.json`](release/supported-minecraft.json). Listing copy

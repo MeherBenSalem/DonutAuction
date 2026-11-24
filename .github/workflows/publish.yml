@@ -4,6 +4,11 @@
 #
 # Secrets: MODRINTH_TOKEN, CURSEFORGE_TOKEN, CURSEFORGE_API_KEY
 # Variables: MODRINTH_ID, CURSEFORGE_ID
+#
+# Same-day guard (NightBeam convention): scripts/same_day_guard.mjs stops a real run if this plugin already had a
+# release today (Africa/Tunis day), on CurseForge or in an earlier Publish run whose "Upload Modrinth + CurseForge"
+# step ran. It runs first and again right before the upload; a dry run only reports it.
+# Dry run (preflight only, no uploads): gh workflow run publish.yml -f version=<x.y.z> -f dry_run=true
 
 name: Publish
 
@@ -39,6 +44,25 @@ jobs:
       contents: read
       actions: read
     steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Same-day guard
+        env:
+          CURSEFORGE_ID: ${{ vars.CURSEFORGE_ID }}
+          CURSEFORGE_API_KEY: ${{ secrets.CURSEFORGE_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PUBLISH_WORKFLOW: publish.yml
+          UPLOAD_STEP: Upload Modrinth + CurseForge
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: node scripts/same_day_guard.mjs
+
       - name: Verify full CI for the exact release commit
         id: ci
         uses: actions/github-script@v7
@@ -199,7 +223,8 @@ jobs:
           }, null, 2));
           JS
 
-      - name: Upload Modrinth + CurseForge
+      - name: Preflight Modrinth + CurseForge (dry run, no uploads)
+        if: ${{ inputs.dry_run == 'true' }}
         env:
           MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
           CURSEFORGE_TOKEN: ${{ secrets.CURSEFORGE_TOKEN }}
@@ -209,7 +234,33 @@ jobs:
           VERSION: ${{ steps.ver.outputs.version }}
           JAR_PATH: ${{ steps.jar.outputs.path }}
           PLATFORMS: ${{ inputs.platforms || 'both' }}
-          PREFLIGHT_ONLY: ${{ inputs.dry_run || 'false' }}
+          PREFLIGHT_ONLY: "true"
+          RECOVERY_RECEIPTS: recovery-receipts
+        run: node scripts/publish-release.mjs
+
+      - name: Same-day guard (again, right before upload)
+        env:
+          CURSEFORGE_ID: ${{ vars.CURSEFORGE_ID }}
+          CURSEFORGE_API_KEY: ${{ secrets.CURSEFORGE_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PUBLISH_WORKFLOW: publish.yml
+          UPLOAD_STEP: Upload Modrinth + CurseForge
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: node scripts/same_day_guard.mjs
+
+      - name: Upload Modrinth + CurseForge
+        if: ${{ inputs.dry_run != 'true' }}
+        env:
+          MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
+          CURSEFORGE_TOKEN: ${{ secrets.CURSEFORGE_TOKEN }}
+          CURSEFORGE_API_KEY: ${{ secrets.CURSEFORGE_API_KEY }}
+          MODRINTH_ID: ${{ vars.MODRINTH_ID }}
+          CURSEFORGE_ID: ${{ vars.CURSEFORGE_ID }}
+          VERSION: ${{ steps.ver.outputs.version }}
+          JAR_PATH: ${{ steps.jar.outputs.path }}
+          PLATFORMS: ${{ inputs.platforms || 'both' }}
+          PREFLIGHT_ONLY: "false"
           RECOVERY_RECEIPTS: recovery-receipts
         run: node scripts/publish-release.mjs
 
