@@ -29,7 +29,7 @@ Every public release must support **Paper, Folia, Purpur, Spigot, and Bukkit** t
 - Keep `api-version: '1.20'` and `folia-supported: true` in `plugin.yml`.
 - Compile against Paper API 1.20.1 (see `pom.xml`). Do not call APIs that only exist on newer Minecraft unless you feature-detect.
 - Use `SchedulerAdapter` (Folia region schedulers). Do not use `BukkitScheduler` for gameplay work.
-- Publish tags must list Paper, Folia, Purpur, Spigot, and Bukkit and every version in `release/supported-minecraft.json`. Hangar, Modrinth, and CurseForge uploads all follow that file.
+- Publish tags must list Paper, Folia, Purpur, Spigot, and Bukkit and every version in `release/supported-minecraft.json`. Releases are published to CurseForge only, and the upload follows that file.
 
 ## Issues
 

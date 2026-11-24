@@ -1,12 +1,12 @@
 # Marketing assets: 2.0 "The Market Update"
 
-Listing copy and artwork for CurseForge, Modrinth and Hangar. Nothing here ships in the plugin jar.
+Listing copy and artwork for CurseForge (releases are published there only) and Hangar. Nothing here ships in the plugin jar.
 
 ## Listing
 
 | File | Use |
 | --- | --- |
-| [`curseforge/description.md`](curseforge/description.md) | Full project description (Markdown; also works on Modrinth and Hangar) |
+| [`curseforge/description.md`](curseforge/description.md) | Full project description (Markdown; also works on Hangar) |
 | [`curseforge/summary.txt`](curseforge/summary.txt) | Short project summary (238 characters) |
 | [`../DonutAuctionHouse-2.0.0-PatchNotes.md`](../DonutAuctionHouse-2.0.0-PatchNotes.md) | File changelog used by `scripts/publish-release.mjs` |
 

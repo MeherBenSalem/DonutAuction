@@ -159,8 +159,8 @@ CI (`.github/workflows/ci.yml`) runs on every push to `main`: `mvn test` on Java
 bStats ID, Java 17 bytecode), the publisher script tests (`node --test scripts/*.test.mjs`), and a smoke boot
 on Paper 1.20.1, Paper 26.3 and the newest Folia (`python3 scripts/smoke_boot.py`).
 
-Release tagging (Modrinth / CurseForge, and Hangar if you upload there) must use every loader and
-Minecraft version in [`release/supported-minecraft.json`](release/supported-minecraft.json). Listing copy
+Releases are published to CurseForge only (`.github/workflows/publish.yml`), and their tags must use every
+loader and Minecraft version in [`release/supported-minecraft.json`](release/supported-minecraft.json). Listing copy
 and artwork are in [`marketing/`](marketing/README.md).
 
 ## Contributing

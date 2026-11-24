@@ -37,5 +37,4 @@ Replace the jar and restart. Listings, history, config values and messages are k
 ## Downloads
 
 - [CurseForge](https://www.curseforge.com/minecraft/bukkit-plugins/donut-auction)
-- [Modrinth](https://modrinth.com/project/8XgyeSRH)
 - [GitHub](https://github.com/MeherBenSalem/DonutAuction)
